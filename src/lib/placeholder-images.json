@@ -1,3 +1,58 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "item-1",
+      "description": "A steaming cup of freshly brewed espresso.",
+      "imageUrl": "https://images.unsplash.com/photo-1582098763665-8477ab3c25fd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8ZXNwcmVzc28lMjBjb2ZmZWV8ZW58MHx8fHwxNzY5Mzc3MzkzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "espresso coffee"
+    },
+    {
+      "id": "item-2",
+      "description": "A creamy cappuccino with latte art.",
+      "imageUrl": "https://images.unsplash.com/photo-1504705707-2159776e0146?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxjYXBwdWNjaW5vJTIwbGF0dGV8ZW58MHx8fHwxNzY5NDE0NTA3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "cappuccino latte"
+    },
+    {
+      "id": "item-3",
+      "description": "A smooth and rich Americano.",
+      "imageUrl": "https://images.unsplash.com/photo-1565065963005-92ba391a8ebc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxhbWVyaWNhbm8lMjBjb2ZmZWV8ZW58MHx8fHwxNzY5Mzk1NDUwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "americano coffee"
+    },
+    {
+      "id": "item-4",
+      "description": "A flaky and buttery croissant.",
+      "imageUrl": "https://images.unsplash.com/photo-1675125530520-cbd142b630b0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y3JvaXNzYW50JTIwcGFzdHJ5fGVufDB8fHx8MTc2OTM0MjM2NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "croissant pastry"
+    },
+    {
+      "id": "item-5",
+      "description": "A decadent chocolate brownie.",
+      "imageUrl": "https://images.unsplash.com/photo-1633981823231-2a2a7c9b014c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxjaG9jb2xhdGUlMjBicm93bmllfGVufDB8fHx8MTc2OTQzNzA3OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chocolate brownie"
+    },
+    {
+      "id": "item-6",
+      "description": "A healthy and delicious avocado toast.",
+      "imageUrl": "https://images.unsplash.com/photo-1687276287139-88f7333c8ca4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxhdm9jYWRvJTIwdG9hc3R8ZW58MHx8fHwxNzY5MzQ1OTQ5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "avocado toast"
+    },
+    {
+      "id": "item-7",
+      "description": "A classic drip coffee.",
+      "imageUrl": "https://images.unsplash.com/photo-1442512595331-e89e73853f31?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxkcmlwJTIwY29mZmVlfGVufDB8fHx8MTc2OTQzNzA3OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "drip coffee"
+    },
+    {
+      "id": "item-8",
+      "description": "A refreshing iced latte.",
+      "imageUrl": "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxpY2VkJTIwbGF0dGV8ZW58MHx8fHwxNzY5NDM3MDc4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "iced latte"
+    },
+    {
+      "id": "item-9",
+      "description": "A sweet and sticky cinnamon roll.",
+      "imageUrl": "https://images.unsplash.com/photo-1593872570782-6c6e7069e67e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxjaW5uYW1vbiUyMHJvbGx8ZW58MHx8fHwxNzY5NDM3MDc4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "cinnamon roll"
+    }
+  ]
 }
