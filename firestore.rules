@@ -4,7 +4,7 @@
  *
  * ## Core Philosophy
  * This ruleset enforces a strict user-ownership model. All application data, including menus,
- * ingredients, transactions, and reports, is private and scoped to the authenticated user
+ * ingredients, assets, transactions, and reports, is private and scoped to the authenticated user
  * who created it. There is no concept of public data or cross-user data sharing.
  *
  * ## Data Structure
@@ -73,17 +73,8 @@ service cloud.firestore {
     }
 
 
-    // Menu Item Rules
+    // Menu Item (Product) Rules
     // ----------------------------------------------------------------
-    /**
-     * @description Manages a user's private collection of menu items. Only the owner
-     *   can perform any actions on their own menu items.
-     * @path /users/{userId}/menuItems/{menuItemId}
-     * @allow (create) User 'user_abc' creating a new menu item at `/users/user_abc/menuItems/pizza`.
-     * @allow (list) User 'user_abc' listing all documents in their `/users/user_abc/menuItems` collection.
-     * @deny (get) User 'user_xyz' trying to read a menu item at `/users/user_abc/menuItems/pizza`.
-     * @principle Enforces strict ownership for all CRUD operations on a user's private subcollection.
-     */
     match /users/{userId}/menuItems/{menuItemId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
@@ -93,18 +84,19 @@ service cloud.firestore {
     }
 
 
-    // Ingredient Rules
+    // Ingredient (Raw Material) Rules
     // ----------------------------------------------------------------
-    /**
-     * @description Manages a user's private collection of ingredients. Only the owner
-     *   can perform any actions on their own ingredients.
-     * @path /users/{userId}/ingredients/{ingredientId}
-     * @allow (create) User 'user_abc' creating a new ingredient at `/users/user_abc/ingredients/cheese`.
-     * @allow (list) User 'user_abc' listing all documents in their `/users/user_abc/ingredients` collection.
-     * @deny (update) User 'user_xyz' trying to update an ingredient at `/users/user_abc/ingredients/cheese`.
-     * @principle Enforces strict ownership for all CRUD operations on a user's private subcollection.
-     */
     match /users/{userId}/ingredients/{ingredientId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    // Asset Rules
+    // ----------------------------------------------------------------
+    match /users/{userId}/assets/{assetId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
       allow create: if isOwner(userId);
@@ -115,15 +107,6 @@ service cloud.firestore {
 
     // Transaction Rules
     // ----------------------------------------------------------------
-    /**
-     * @description Manages a user's private collection of transactions. Only the owner
-     *   can perform any actions on their own transaction records.
-     * @path /users/{userId}/transactions/{transactionId}
-     * @allow (create) User 'user_abc' creating a new transaction at `/users/user_abc/transactions/tx_123`.
-     * @allow (list) User 'user_abc' listing all documents in their `/users/user_abc/transactions` collection.
-     * @deny (delete) User 'user_xyz' trying to delete a transaction at `/users/user_abc/transactions/tx_123`.
-     * @principle Enforces strict ownership for all CRUD operations on a user's private subcollection.
-     */
     match /users/{userId}/transactions/{transactionId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
@@ -135,15 +118,6 @@ service cloud.firestore {
 
     // Daily Sales Report Rules
     // ----------------------------------------------------------------
-    /**
-     * @description Manages a user's private collection of daily sales reports. Only the owner
-     *   can perform any actions on their own reports.
-     * @path /users/{userId}/dailySalesReports/{dailySalesReportId}
-     * @allow (create) User 'user_abc' creating a new report at `/users/user_abc/dailySalesReports/2023-10-27`.
-     * @allow (list) User 'user_abc' listing all documents in their `/users/user_abc/dailySalesReports` collection.
-     * @deny (get) User 'user_xyz' trying to read a report at `/users/user_abc/dailySalesReports/2023-10-27`.
-     * @principle Enforces strict ownership for all CRUD operations on a user's private subcollection.
-     */
     match /users/{userId}/dailySalesReports/{dailySalesReportId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);

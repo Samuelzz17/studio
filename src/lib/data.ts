@@ -7,12 +7,19 @@ export type MenuItem = {
   imageUrl: string;
 };
 
-export type InventoryItem = {
+export type RawMaterial = {
   id: string;
   name: string;
-  stock: number;
-  unit: 'kg' | 'liters' | 'units';
+  stockLevel: number;
+  unitOfMeasurement: string;
   lowStockThreshold: number;
+};
+
+export type Asset = {
+  id: string;
+  name: string;
+  quantity: number;
+  unitOfMeasurement: string;
 };
 
 export type Transaction = {
@@ -96,13 +103,4 @@ export const menuItems: MenuItem[] = [
     category: 'Pastries',
     imageUrl: 'https://picsum.photos/seed/9/400/300',
   },
-];
-
-export const inventory: InventoryItem[] = [
-  { id: 'inv-1', name: 'Coffee Beans', stock: 10, unit: 'kg', lowStockThreshold: 5 },
-  { id: 'inv-2', name: 'Milk', stock: 5, unit: 'liters', lowStockThreshold: 4 },
-  { id: 'inv-3', name: 'Croissants', stock: 20, unit: 'units', lowStockThreshold: 10 },
-  { id: 'inv-4', name: 'Chocolate', stock: 8, unit: 'kg', lowStockThreshold: 3 },
-  { id: 'inv-5', name: 'Avocado', stock: 15, unit: 'units', lowStockThreshold: 5 },
-  { id: 'inv-6', name: 'Bread Loaves', stock: 3, unit: 'units', lowStockThreshold: 2 },
 ];

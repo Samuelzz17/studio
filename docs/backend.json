@@ -51,7 +51,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Ingredient",
       "type": "object",
-      "description": "Represents an ingredient used in menu items.",
+      "description": "Represents an ingredient used in menu items (Raw Material).",
       "properties": {
         "id": {
           "type": "string",
@@ -67,7 +67,7 @@
         },
         "unitOfMeasurement": {
           "type": "string",
-          "description": "The unit of measurement for the ingredient (e.g., 'kg', 'g', 'ml')."
+          "description": "The unit of measurement (e.g., 'kg', 'g', 'l', 'ml', 'pcs')."
         },
         "menuItemIds": {
           "type": "array",
@@ -75,12 +75,56 @@
           "items": {
             "type": "string"
           }
+        },
+        "lowStockThreshold": {
+          "type": "number",
+          "description": "The stock level at which the ingredient is considered low."
         }
       },
       "required": [
         "id",
         "name",
         "stockLevel",
+        "unitOfMeasurement",
+        "lowStockThreshold"
+      ]
+    },
+    "Asset": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Asset",
+      "type": "object",
+      "description": "Represents a non-sellable business asset that needs to be tracked.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the asset."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the asset."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of the asset."
+        },
+        "unitOfMeasurement": {
+          "type": "string",
+          "description": "The unit of measurement for the asset (e.g., 'pcs', 'units')."
+        },
+        "purchasePrice": {
+          "type": "number",
+          "description": "The purchase price of the asset."
+        },
+        "purchaseDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The date the asset was purchased."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "quantity",
         "unitOfMeasurement"
       ]
     },
@@ -206,7 +250,7 @@
           "schema": {
             "$ref": "#/entities/MenuItem"
           },
-          "description": "MenuItems belonging to a specific user."
+          "description": "MenuItems (Products) belonging to a specific user."
         }
       },
       {
@@ -216,7 +260,17 @@
           "schema": {
             "$ref": "#/entities/Ingredient"
           },
-          "description": "Ingredients belonging to a specific user."
+          "description": "Ingredients (Raw Materials) belonging to a specific user."
+        }
+      },
+      {
+        "path": "/users/{userId}/assets/{assetId}",
+        "definition": {
+          "entityName": "Asset",
+          "schema": {
+            "$ref": "#/entities/Asset"
+          },
+          "description": "Assets belonging to a specific user."
         }
       },
       {

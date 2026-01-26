@@ -32,10 +32,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { inventory } from '@/lib/data';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Transaction } from '@/lib/data';
+import type { Transaction, RawMaterial } from '@/lib/data';
+import withAuth from '@/components/withAuth';
+
 
 function Dashboard() {
   const { firestore, user } = useFirebase();
@@ -48,12 +49,19 @@ function Dashboard() {
   const { data: sales, isLoading: isLoadingSales } =
     useCollection<Transaction>(transactionsQuery);
 
+  const rawMaterialsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'ingredients');
+  }, [firestore, user]);
+
+  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
+
   const totalRevenue = sales?.reduce((acc, sale) => acc + sale.totalCost, 0) ?? 0;
   const totalSales = sales?.length ?? 0;
 
-  const lowStockItems = inventory.filter(
-    (item) => item.stock <= item.lowStockThreshold
-  );
+  const lowStockItems = rawMaterials?.filter(
+    (item) => item.stockLevel <= item.lowStockThreshold
+  ) ?? [];
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -79,7 +87,7 @@ function Dashboard() {
                     ${totalRevenue.toFixed(2)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    +20.1% from last month
+                    Based on all transactions
                   </p>
                 </CardContent>
               </Card>
@@ -91,7 +99,7 @@ function Dashboard() {
                 <CardContent>
                   <div className="text-2xl font-bold">+{totalSales}</div>
                   <p className="text-xs text-muted-foreground">
-                    +180.1% from last month
+                    Total transactions recorded
                   </p>
                 </CardContent>
               </Card>
@@ -115,7 +123,7 @@ function Dashboard() {
                 <CardContent>
                   <div className="text-2xl font-bold">+573</div>
                   <p className="text-xs text-muted-foreground">
-                    +201 since last hour
+                    +201 since last hour (demo)
                   </p>
                 </CardContent>
               </Card>
@@ -186,7 +194,9 @@ function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-8">
-              {lowStockItems.map((item) => (
+              {isLoadingRawMaterials ? (
+                 <Loader className="mx-auto h-6 w-6 animate-spin" />
+              ) : lowStockItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-4">
                   <Avatar className="hidden h-9 w-9 sm:flex">
                     <AvatarImage
@@ -200,7 +210,7 @@ function Dashboard() {
                       {item.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {item.stock} {item.unit} remaining
+                      {item.stockLevel} {item.unitOfMeasurement} remaining
                     </p>
                   </div>
                   <Badge variant="destructive" className="ml-auto">
@@ -216,4 +226,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default withAuth(Dashboard);
