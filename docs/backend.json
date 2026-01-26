@@ -1,0 +1,259 @@
+{
+  "entities": {
+    "MenuItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MenuItem",
+      "type": "object",
+      "description": "Represents a single item on the restaurant's menu.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the menu item."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the menu item."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the menu item."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the menu item."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the image for the menu item."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category the menu item belongs to (e.g., 'Appetizers', 'Main Courses', 'Desserts')."
+        },
+        "ingredientIds": {
+          "type": "array",
+          "description": "References to Ingredients. (Relationship: MenuItem N:N Ingredient)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "price",
+        "imageUrl",
+        "category"
+      ]
+    },
+    "Ingredient": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Ingredient",
+      "type": "object",
+      "description": "Represents an ingredient used in menu items.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ingredient."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the ingredient."
+        },
+        "stockLevel": {
+          "type": "number",
+          "description": "The current stock level of the ingredient."
+        },
+        "unitOfMeasurement": {
+          "type": "string",
+          "description": "The unit of measurement for the ingredient (e.g., 'kg', 'g', 'ml')."
+        },
+        "menuItemIds": {
+          "type": "array",
+          "description": "References to MenuItems. (Relationship: Ingredient N:N MenuItem)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "stockLevel",
+        "unitOfMeasurement"
+      ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a single customer transaction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The timestamp of the transaction.",
+          "format": "date-time"
+        },
+        "totalCost": {
+          "type": "number",
+          "description": "The total cost of the transaction."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "The payment method used for the transaction (e.g., 'Cash', 'Credit Card')."
+        },
+        "menuItemIds": {
+          "type": "array",
+          "description": "References to MenuItems sold in this transaction. (Relationship: Transaction 1:N MenuItem)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "timestamp",
+        "totalCost",
+        "paymentMethod"
+      ]
+    },
+    "DailySalesReport": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DailySalesReport",
+      "type": "object",
+      "description": "Represents a summary of sales for a single day.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the daily sales report."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date for which the sales are summarized.",
+          "format": "date"
+        },
+        "totalRevenue": {
+          "type": "number",
+          "description": "The total revenue for the day."
+        },
+        "mostPopularItems": {
+          "type": "array",
+          "description": "An array of the most popular menu items sold that day (MenuItem IDs).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "peakHours": {
+          "type": "array",
+          "description": "An array of peak sales hours for the day.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "totalRevenue",
+        "mostPopularItems",
+        "peakHours"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}/menuItems/{menuItemId}",
+        "definition": {
+          "entityName": "MenuItem",
+          "schema": {
+            "$ref": "#/backend/entities/MenuItem"
+          },
+          "description": "MenuItems belonging to a specific user.  Path-based ownership for private data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user."
+            },
+            {
+              "name": "menuItemId",
+              "description": "The ID of the menu item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/ingredients/{ingredientId}",
+        "definition": {
+          "entityName": "Ingredient",
+          "schema": {
+            "$ref": "#/backend/entities/Ingredient"
+          },
+          "description": "Ingredients belonging to a specific user. Path-based ownership for private data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user."
+            },
+            {
+              "name": "ingredientId",
+              "description": "The ID of the ingredient."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Transactions belonging to a specific user. Path-based ownership for private data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user."
+            },
+            {
+              "name": "transactionId",
+              "description": "The ID of the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/dailySalesReports/{dailySalesReportId}",
+        "definition": {
+          "entityName": "DailySalesReport",
+          "schema": {
+            "$ref": "#/backend/entities/DailySalesReport"
+          },
+          "description": "Daily sales reports belonging to a specific user. Path-based ownership for private data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user."
+            },
+            {
+              "name": "dailySalesReportId",
+              "description": "The ID of the daily sales report."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, following the principles outlined in the design strategy.  Authorization Independence is achieved by relying solely on `request.auth.uid` and structuring data to avoid hierarchical `get()` calls in security rules.  Since all data is private, we will use path-based ownership. This provides the simplest, most secure way to structure the data. The data relating to POS transactions is kept separate from the sales reports and inventory data to keep the security rules simple.  Sales summaries denormalize data from the daily sales records."
+  }
+}
