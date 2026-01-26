@@ -163,6 +163,21 @@
         "mostPopularItems",
         "peakHours"
       ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The UID of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address."
+        }
+      }
     }
   },
   "auth": {
@@ -172,25 +187,26 @@
     ]
   },
   "firestore": {
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, following the principles outlined in the design strategy.  Authorization Independence is achieved by relying solely on `request.auth.uid` and structuring data to avoid hierarchical `get()` calls in security rules.  Since all data is private, we will use path-based ownership. This provides the simplest, most secure way to structure the data. The data relating to POS transactions is kept separate from the sales reports and inventory data to keep the security rules simple.  Sales summaries denormalize data from the daily sales records.",
     "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/entities/UserProfile"
+          },
+          "description": "User profile document."
+        }
+      },
       {
         "path": "/users/{userId}/menuItems/{menuItemId}",
         "definition": {
           "entityName": "MenuItem",
           "schema": {
-            "$ref": "#/backend/entities/MenuItem"
+            "$ref": "#/entities/MenuItem"
           },
-          "description": "MenuItems belonging to a specific user.  Path-based ownership for private data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The UID of the user."
-            },
-            {
-              "name": "menuItemId",
-              "description": "The ID of the menu item."
-            }
-          ]
+          "description": "MenuItems belonging to a specific user."
         }
       },
       {
@@ -198,19 +214,9 @@
         "definition": {
           "entityName": "Ingredient",
           "schema": {
-            "$ref": "#/backend/entities/Ingredient"
+            "$ref": "#/entities/Ingredient"
           },
-          "description": "Ingredients belonging to a specific user. Path-based ownership for private data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The UID of the user."
-            },
-            {
-              "name": "ingredientId",
-              "description": "The ID of the ingredient."
-            }
-          ]
+          "description": "Ingredients belonging to a specific user."
         }
       },
       {
@@ -218,19 +224,9 @@
         "definition": {
           "entityName": "Transaction",
           "schema": {
-            "$ref": "#/backend/entities/Transaction"
+            "$ref": "#/entities/Transaction"
           },
-          "description": "Transactions belonging to a specific user. Path-based ownership for private data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The UID of the user."
-            },
-            {
-              "name": "transactionId",
-              "description": "The ID of the transaction."
-            }
-          ]
+          "description": "Transactions belonging to a specific user."
         }
       },
       {
@@ -238,22 +234,11 @@
         "definition": {
           "entityName": "DailySalesReport",
           "schema": {
-            "$ref": "#/backend/entities/DailySalesReport"
+            "$ref": "#/entities/DailySalesReport"
           },
-          "description": "Daily sales reports belonging to a specific user. Path-based ownership for private data.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The UID of the user."
-            },
-            {
-              "name": "dailySalesReportId",
-              "description": "The ID of the daily sales report."
-            }
-          ]
+          "description": "Daily sales reports for a user."
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, following the principles outlined in the design strategy.  Authorization Independence is achieved by relying solely on `request.auth.uid` and structuring data to avoid hierarchical `get()` calls in security rules.  Since all data is private, we will use path-based ownership. This provides the simplest, most secure way to structure the data. The data relating to POS transactions is kept separate from the sales reports and inventory data to keep the security rules simple.  Sales summaries denormalize data from the daily sales records."
+    ]
   }
 }

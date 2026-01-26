@@ -1,8 +1,11 @@
+'use client';
+
 import Link from 'next/link';
 import {
   Activity,
   ArrowUpRight,
   CircleDollarSign,
+  Loader,
   Package,
   Users,
 } from 'lucide-react';
@@ -29,11 +32,25 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { inventory, sales } from '@/lib/data';
+import { inventory } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { Transaction } from '@/lib/data';
 
-export default function Dashboard() {
-  const totalRevenue = sales.reduce((acc, sale) => acc + sale.total, 0);
-  const totalSales = sales.length;
+function Dashboard() {
+  const { firestore, user } = useFirebase();
+
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'transactions');
+  }, [firestore, user]);
+
+  const { data: sales, isLoading: isLoadingSales } =
+    useCollection<Transaction>(transactionsQuery);
+
+  const totalRevenue = sales?.reduce((acc, sale) => acc + sale.totalCost, 0) ?? 0;
+  const totalSales = sales?.length ?? 0;
+
   const lowStockItems = inventory.filter(
     (item) => item.stock <= item.lowStockThreshold
   );
@@ -130,25 +147,32 @@ export default function Dashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sales.slice(0, 5).map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>
-                          <div className="font-medium">{sale.customer}</div>
-                          <div className="hidden text-sm text-muted-foreground md:inline">
-                            {new Date(sale.date).toLocaleDateString()}
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-column">
-                          {sale.items
-                            .map((item) => `${item.name} (x${item.quantity})`)
-                            .join(', ')}
-                        </TableCell>
-
-                        <TableCell className="text-right">
-                          ${sale.total.toFixed(2)}
+                    {isLoadingSales ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center">
+                          <Loader className="mx-auto h-6 w-6 animate-spin" />
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      sales?.slice(0, 5).map((sale) => (
+                        <TableRow key={sale.id}>
+                          <TableCell>
+                            <div className="font-medium">Anonymous</div>
+                            <div className="hidden text-sm text-muted-foreground md:inline">
+                              {sale.timestamp?.toDate().toLocaleDateString()}
+                            </div>
+                          </TableCell>
+                          <TableCell className="hidden xl:table-column">
+                            {/* This is simplified */}
+                            {sale.menuItemIds.length} items
+                          </TableCell>
+  
+                          <TableCell className="text-right">
+                            ${sale.totalCost.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -191,3 +215,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default Dashboard;

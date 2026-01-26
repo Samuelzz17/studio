@@ -24,14 +24,25 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
-  SheetTrigger,
 } from '@/components/ui/sheet';
+import withAuth from '@/components/withAuth';
+import { useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 type OrderItem = MenuItem & { quantity: number };
 
-export default function POSPage() {
+function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const { toast } = useToast();
+  const { firestore, user } = useFirebase();
+
+  const transactionsCollectionRef = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return collection(firestore, 'users', user.uid, 'transactions');
+  }, [firestore, user]);
+
 
   const handleAddItem = (item: MenuItem) => {
     setOrderItems((prevItems) => {
@@ -82,12 +93,24 @@ export default function POSPage() {
     })
   }
   
-  const handleCheckout = (paymentMethod: string) => {
+  const handleCheckout = (paymentMethod: 'Cash' | 'Card' | 'Bank') => {
+    if (!transactionsCollectionRef) return;
+
+    const newTransaction = {
+        timestamp: serverTimestamp(),
+        totalCost: total,
+        paymentMethod,
+        menuItemIds: orderItems.map(item => item.id), // Simplified for now
+        // In a real app, you might store more item details
+    };
+
+    addDocumentNonBlocking(transactionsCollectionRef, newTransaction);
     toast({
         title: "Order Placed!",
         description: `Total: $${total.toFixed(2)} paid with ${paymentMethod}.`,
     });
     setOrderItems([]);
+    setIsCheckoutSheetOpen(false);
   }
 
   return (
@@ -200,10 +223,8 @@ export default function POSPage() {
                   <Button variant="outline" onClick={handleClearOrder}>
                     <X className="mr-2 h-4 w-4"/> Clear
                   </Button>
-                  <Sheet>
-                    <SheetTrigger asChild>
-                      <Button>Checkout</Button>
-                    </SheetTrigger>
+                  <Sheet open={isCheckoutSheetOpen} onOpenChange={setIsCheckoutSheetOpen}>
+                    <Button onClick={() => setIsCheckoutSheetOpen(true)}>Checkout</Button>
                     <SheetContent>
                       <SheetHeader>
                         <SheetTitle>Complete Payment</SheetTitle>
@@ -248,3 +269,5 @@ export default function POSPage() {
     </div>
   );
 }
+
+export default withAuth(POSPage);

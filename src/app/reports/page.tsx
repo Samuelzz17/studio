@@ -16,49 +16,57 @@ import {
   ChartLegendContent,
 } from '@/components/ui/chart';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { sales } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { useMemo } from 'react';
+import { collection } from 'firebase/firestore';
+import type { Transaction } from '@/lib/data';
+import { menuItems } from '@/lib/data';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function ReportsPage() {
+  const { firestore, user } = useFirebase();
+
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'transactions');
+  }, [firestore, user]);
+
+  const { data: sales } = useCollection<Transaction>(transactionsQuery);
+
   const salesByCategory = useMemo(() => {
     const categoryMap = { Coffee: 0, Pastries: 0, Food: 0 };
-    sales.forEach(sale => {
-      sale.items.forEach(item => {
-        // This is a simplification. In a real app, you'd look up the item's category.
-        if (item.name.includes('Espresso') || item.name.includes('Cappuccino') || item.name.includes('Americano') || item.name.includes('Coffee') || item.name.includes('Latte')) {
-            categoryMap.Coffee += item.quantity;
-        } else if (item.name.includes('Croissant') || item.name.includes('Brownie') || item.name.includes('Roll')) {
-            categoryMap.Pastries += item.quantity;
-        } else {
-            categoryMap.Food += item.quantity;
-        }
+    sales?.forEach(sale => {
+      sale.menuItemIds.forEach(itemId => {
+        const menuItem = menuItems.find(mi => mi.id === itemId);
+        if (menuItem) {
+            categoryMap[menuItem.category] += 1;
+        } 
       });
     });
     return Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [sales]);
   
   const salesByHour = useMemo(() => {
     const hourMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 }));
-     sales.forEach(sale => {
-        const hour = new Date(sale.date).getHours();
-        hourMap[hour].sales += sale.total;
+     sales?.forEach(sale => {
+        const hour = sale.timestamp.toDate().getHours();
+        hourMap[hour].sales += sale.totalCost;
      });
      return hourMap.filter(h => h.sales > 0);
-  }, []);
+  }, [sales]);
 
   const dailyRevenue = useMemo(() => {
     const revenueMap: { [key: string]: number } = {};
-    sales.forEach(sale => {
-      const date = new Date(sale.date).toLocaleDateString('en-CA');
+    sales?.forEach(sale => {
+      const date = sale.timestamp.toDate().toLocaleDateString('en-CA');
       if (!revenueMap[date]) {
         revenueMap[date] = 0;
       }
-      revenueMap[date] += sale.total;
+      revenueMap[date] += sale.totalCost;
     });
     return Object.entries(revenueMap).map(([date, revenue]) => ({ date: new Date(date).toLocaleDateString('en-US', { weekday: 'short'}), revenue }));
-  }, []);
+  }, [sales]);
 
   const chartConfigCategory = {
     value: { label: "Items Sold" },

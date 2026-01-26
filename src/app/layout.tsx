@@ -3,6 +3,7 @@ import './globals.css';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { SiteSidebar } from '@/components/SiteSidebar';
 import { Toaster } from '@/components/ui/toaster';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
   title: 'SR',
@@ -30,10 +31,12 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <SidebarProvider>
-          <SiteSidebar />
-          <SidebarInset>
-            <main>{children}</main>
-          </SidebarInset>
+          <FirebaseClientProvider>
+            <SiteSidebar />
+            <SidebarInset>
+              <main>{children}</main>
+            </SidebarInset>
+          </FirebaseClientProvider>
         </SidebarProvider>
         <Toaster />
       </body>

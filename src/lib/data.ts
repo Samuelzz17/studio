@@ -15,13 +15,12 @@ export type InventoryItem = {
   lowStockThreshold: number;
 };
 
-export type Sale = {
+export type Transaction = {
   id: string;
-  customer: string;
-  date: string;
-  items: { id: string; name: string; quantity: number }[];
-  total: number;
-  paymentMethod: 'Cash' | 'Card';
+  timestamp: any; // Firestore Timestamp
+  totalCost: number;
+  paymentMethod: 'Cash' | 'Card' | 'Bank';
+  menuItemIds: string[];
 };
 
 export const menuItems: MenuItem[] = [
@@ -106,64 +105,4 @@ export const inventory: InventoryItem[] = [
   { id: 'inv-4', name: 'Chocolate', stock: 8, unit: 'kg', lowStockThreshold: 3 },
   { id: 'inv-5', name: 'Avocado', stock: 15, unit: 'units', lowStockThreshold: 5 },
   { id: 'inv-6', name: 'Bread Loaves', stock: 3, unit: 'units', lowStockThreshold: 2 },
-];
-
-export const sales: Sale[] = [
-  {
-    id: 'sale-1',
-    customer: 'John Doe',
-    date: '2024-07-28T10:30:00Z',
-    items: [
-      { id: 'item-1', name: 'Espresso', quantity: 1 },
-      { id: 'item-4', name: 'Croissant', quantity: 1 },
-    ],
-    total: 5.75,
-    paymentMethod: 'Card',
-  },
-  {
-    id: 'sale-2',
-    customer: 'Jane Smith',
-    date: '2024-07-28T10:35:00Z',
-    items: [{ id: 'item-2', name: 'Cappuccino', quantity: 2 }],
-    total: 9.0,
-    paymentMethod: 'Card',
-  },
-  {
-    id: 'sale-3',
-    customer: 'Peter Jones',
-    date: '2024-07-28T11:05:00Z',
-    items: [{ id: 'item-6', name: 'Avocado Toast', quantity: 1 }],
-    total: 8.5,
-    paymentMethod: 'Cash',
-  },
-  {
-    id: 'sale-4',
-    customer: 'Mary Williams',
-    date: '2024-07-28T12:15:00Z',
-    items: [
-      { id: 'item-3', name: 'Americano', quantity: 1 },
-      { id: 'item-5', name: 'Chocolate Brownie', quantity: 1 },
-    ],
-    total: 6.75,
-    paymentMethod: 'Card',
-  },
-  {
-    id: 'sale-5',
-    customer: 'David Brown',
-    date: '2024-07-28T13:00:00Z',
-    items: [
-      { id: 'item-2', name: 'Cappuccino', quantity: 1 },
-      { id: 'item-8', name: 'Iced Latte', quantity: 1 },
-    ],
-    total: 9.5,
-    paymentMethod: 'Card',
-  },
-  {
-    id: 'sale-6',
-    customer: 'Olivia Garcia',
-    date: '2024-07-28T14:20:00Z',
-    items: [{ id: 'item-9', name: 'Cinnamon Roll', quantity: 2 }],
-    total: 8.0,
-    paymentMethod: 'Cash',
-  },
 ];

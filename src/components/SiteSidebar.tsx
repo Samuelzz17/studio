@@ -26,7 +26,6 @@ import { Separator } from './ui/separator';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/pos', label: 'Point of Sale', icon: ShoppingCart },
   { href: '/menu', label: 'Menu', icon: BookOpen },
   { href: '/inventory', label: 'Inventory', icon: Boxes },
   { href: '/sales', label: 'Sales', icon: DollarSign },

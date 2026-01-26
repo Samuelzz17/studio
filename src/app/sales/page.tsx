@@ -1,3 +1,5 @@
+'use client';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,8 +26,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { sales } from '@/lib/data';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Loader } from 'lucide-react';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { Transaction } from '@/lib/data';
 import {
   Pagination,
   PaginationContent,
@@ -37,7 +41,17 @@ import {
 } from '@/components/ui/pagination';
 
 
-export default function SalesPage() {
+export default function SalesPage() {  
+  const { firestore, user } = useFirebase();
+
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    // TODO: Add sorting and pagination queries
+    return collection(firestore, 'users', user.uid, 'transactions');
+  }, [firestore, user]);
+
+  const { data: sales, isLoading: isLoadingSales } = useCollection<Transaction>(transactionsQuery);
+
   return (
     <div className="flex min-h-screen w-full flex-col">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
@@ -72,15 +86,22 @@ export default function SalesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales.map((sale) => (
+                {isLoadingSales ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center">
+                      <Loader className="mx-auto h-6 w-6 animate-spin" />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                sales?.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-mono text-xs">{sale.id}</TableCell>
-                    <TableCell className="font-medium">{sale.customer}</TableCell>
+                    <TableCell className="font-medium">Anonymous</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {new Date(sale.date).toLocaleString()}
+                      {sale.timestamp?.toDate().toLocaleString()}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {sale.items.reduce((sum, item) => sum + item.quantity, 0)}
+                      {sale.menuItemIds.length}
                     </TableCell>
                     <TableCell>
                       <Badge variant={sale.paymentMethod === 'Card' ? 'default' : 'secondary'}>
@@ -88,7 +109,7 @@ export default function SalesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${sale.total.toFixed(2)}
+                      ${sale.totalCost.toFixed(2)}
                     </TableCell>
                     <TableCell>
                        <DropdownMenu>
@@ -110,7 +131,7 @@ export default function SalesPage() {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                )))}
               </TableBody>
             </Table>
           </CardContent>
