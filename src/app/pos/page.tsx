@@ -24,6 +24,7 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
+  SheetTrigger,
 } from '@/components/ui/sheet';
 
 type OrderItem = MenuItem & { quantity: number };
