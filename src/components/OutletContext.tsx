@@ -9,7 +9,7 @@ import {
   useEffect,
 } from 'react';
 import { useFirebase, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, collection, where, query, serverTimestamp, writeBatch, documentId, getDoc } from 'firebase/firestore';
+import { doc, collection, where, query, serverTimestamp, writeBatch, documentId, getDocs } from 'firebase/firestore';
 import type { User, OutletInfo } from '@/lib/data';
 import {
   Select,
@@ -74,11 +74,11 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const outletDocsPromises = validOutletIds.map(id => getDoc(doc(firestore, "outlets", id)));
-        const outletDocsSnaps = await Promise.all(outletDocsPromises);
+        const outletsRef = collection(firestore, "outlets");
+        const q = query(outletsRef, where(documentId(), "in", validOutletIds));
+        const querySnapshot = await getDocs(q);
 
-        const fetchedOutlets = outletDocsSnaps
-          .filter(snap => snap.exists())
+        const fetchedOutlets = querySnapshot.docs
           .map(snap => ({ id: snap.id, ...snap.data() } as OutletInfo & { id: string }));
 
         setOutlets(fetchedOutlets);

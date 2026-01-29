@@ -15,8 +15,8 @@ async function seed() {
 
   // --- 1. SEED A TEST USER ---
   // ⛔️ IMPORTANT: Replace with a real User ID from your Firebase Authentication console.
-  const testUserUid = 'REPLACE_WITH_YOUR_FIREBASE_USER_ID'; 
-  if (testUserUid === 'REPLACE_WITH_YOUR_FIREBASE_USER_ID') {
+  const testUserUid = 'Q7wyhBhih8ZcZInFUSELgrYHHB13'; 
+  if (testUserUid === 'Q7wyhBhih8ZcZInFUSELgrYHHB13n') {
     console.warn('⚠️ Skipping user seed. Please edit `scripts/seed-firestore.ts` and replace the placeholder UID.');
   } else {
     const userRef = db.collection('users').doc(testUserUid);
