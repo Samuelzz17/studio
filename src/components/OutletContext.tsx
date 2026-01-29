@@ -40,7 +40,8 @@ export function OutletProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
+    // If there's no user, we can't fetch anything. Clear state and stop.
+    if (!user || !db) {
       setOutlets([]);
       setActiveOutlet(null);
       setLoading(false);
@@ -48,28 +49,29 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     }
 
     const fetchOutlets = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-
-        /** 1️⃣ Ambil user doc */
+        // 1. Get the user's document to find which outlets they can access.
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
 
         if (!userSnap.exists()) {
-          console.warn('User doc not found');
-          setLoading(false);
+          console.warn(`User document not found for uid: ${user.uid}. Cannot fetch outlets.`);
+          setOutlets([]);
+          setActiveOutlet(null);
           return;
         }
 
         const outletAccess: string[] = userSnap.data().outletAccess || [];
 
         if (outletAccess.length === 0) {
+          console.warn(`User ${user.uid} has an empty 'outletAccess' array. No outlets to fetch.`);
           setOutlets([]);
-          setLoading(false);
+          setActiveOutlet(null);
           return;
         }
 
-        /** 2️⃣ Fetch outlets by ID */
+        // 2. Fetch only the outlets the user has access to.
         const q = query(
           collection(db, 'outlets'),
           where(documentId(), 'in', outletAccess)
@@ -84,18 +86,28 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
         setOutlets(data);
 
-        /** 3️⃣ Set default active outlet */
-        if (data.length > 0 && (!activeOutlet || !data.some(o => o.id === activeOutlet.id))) {
-          setActiveOutlet(data[0]);
+        // 3. Set a default active outlet only if one isn't already selected,
+        // or if the selected one is no longer valid.
+        if (data.length > 0) {
+          setActiveOutlet((currentActive) => {
+            const isCurrentActiveValid = currentActive && data.some(o => o.id === currentActive.id);
+            return isCurrentActiveValid ? currentActive : data[0];
+          });
+        } else {
+          setActiveOutlet(null);
         }
       } catch (err) {
-        console.error('❌ fetchOutlets error:', err);
+        console.error('❌ Error fetching outlets:', err);
+        setOutlets([]);
+        setActiveOutlet(null);
       } finally {
         setLoading(false);
       }
     };
 
     fetchOutlets();
+    // This effect should ONLY re-run when the user or db instance changes.
+    // The active outlet is UI state managed within the provider, not a trigger for re-fetching.
   }, [user, db]);
 
   return (
