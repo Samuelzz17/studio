@@ -22,24 +22,25 @@ import { useMemo } from 'react';
 import { collection, query } from 'firebase/firestore';
 import type { Transaction, Product } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { Loader } from 'lucide-react';
 
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function FinanceReportPage() {
   const { firestore } = useFirebase();
-  const { selectedOutletId } = useOutlet();
-  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const isOutletSelected = !!activeOutlet;
 
   const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/sales`));
-  }, [firestore, selectedOutletId, isOutletSelected]);
+    if (!firestore || !activeOutlet) return null;
+    return query(collection(firestore, `outlets/${activeOutlet.id}/sales`));
+  }, [firestore, activeOutlet]);
   
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/inventory_products`));
-  }, [firestore, selectedOutletId, isOutletSelected]);
+    if (!firestore || !activeOutlet) return null;
+    return query(collection(firestore, `outlets/${activeOutlet.id}/inventory_products`));
+  }, [firestore, activeOutlet]);
 
   const { data: sales } = useCollection<Transaction>(transactionsQuery);
   const { data: products } = useCollection<Product>(productsQuery);
@@ -111,6 +112,13 @@ export default function FinanceReportPage() {
   };
   
   const renderContent = () => {
+    if (isLoadingOutlets) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+        </div>
+       );
+    }
     if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">

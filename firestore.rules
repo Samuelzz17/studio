@@ -18,13 +18,9 @@ service cloud.firestore {
     // =========================
     match /outlets/{outletId} {
 
-      // GET: Allow reading a single outlet document for any authenticated user.
-      allow get: if isAuthenticated();
-      
-      // LIST: Allow listing outlets for any authenticated user.
-      // This permission is necessary for the `where-in` query to function correctly.
-      // The client-side query still ensures users only fetch their own outlets.
-      allow list: if isAuthenticated();
+      // READ outlet only if user has access. This covers get and list.
+      // The `where ... in` client query is treated as multiple `get`s, which this rule allows.
+      allow read: if isAuthenticated() && hasOutletAccess(outletId);
 
       // WRITE to the outlet document only for users with 'owner' role
       allow write: if isOwner();
@@ -53,7 +49,6 @@ service cloud.firestore {
     }
 
     // Checks if an outletId exists in the user's 'outletAccess' array.
-    // This function can only be used in rules for 'get' requests, not 'list'.
     function hasOutletAccess(outletId) {
       return isAuthenticated()
         && outletId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outletAccess;

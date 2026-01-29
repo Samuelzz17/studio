@@ -41,12 +41,12 @@ export default function POSPage() {
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
-  const { selectedOutletId } = useOutlet();
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
   const router = useRouter();
 
   // Redirect if no outlet is selected
   useEffect(() => {
-    if (!selectedOutletId || selectedOutletId === 'all') {
+    if (!isLoadingOutlets && !activeOutlet) {
       toast({
         title: 'No Outlet Selected',
         description: 'Please select an outlet from the dashboard to open POS.',
@@ -54,19 +54,19 @@ export default function POSPage() {
       });
       router.push('/dashboard');
     }
-  }, [selectedOutletId, router, toast]);
+  }, [activeOutlet, isLoadingOutlets, router, toast]);
 
   const menuItemsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-    return collection(firestore, `outlets/${selectedOutletId}/inventory_products`);
-  }, [firestore, user, selectedOutletId]);
+    if (!firestore || !user || !activeOutlet) return null;
+    return collection(firestore, `outlets/${activeOutlet.id}/inventory_products`);
+  }, [firestore, user, activeOutlet]);
 
   const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
 
   const transactionsCollectionRef = useMemoFirebase(() => {
-      if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-      return collection(firestore, `outlets/${selectedOutletId}/sales`);
-  }, [firestore, user, selectedOutletId]);
+      if (!firestore || !user || !activeOutlet) return null;
+      return collection(firestore, `outlets/${activeOutlet.id}/sales`);
+  }, [firestore, user, activeOutlet]);
 
 
   const handleAddItem = (item: Product) => {
@@ -143,11 +143,11 @@ export default function POSPage() {
   }
 
   const renderContent = () => {
-    if (!selectedOutletId || selectedOutletId === 'all') {
+    if (isLoadingOutlets || !activeOutlet) {
        return (
         <div className="flex flex-1 items-center justify-center">
             <Loader className="h-8 w-8 animate-spin" />
-            <p className="ml-4 text-muted-foreground">Redirecting...</p>
+            {!isLoadingOutlets && <p className="ml-4 text-muted-foreground">Redirecting...</p>}
         </div>
        );
     }

@@ -34,17 +34,24 @@ import { format } from 'date-fns';
 
 export default function AssetsPage() {
   const { firestore } = useFirebase();
-  const { selectedOutletId } = useOutlet();
-  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const isOutletSelected = !!activeOutlet;
 
   const assetsQuery = useMemoFirebase(() => {
-    if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_assets');
-  }, [firestore, selectedOutletId, isOutletSelected]);
+    if (!firestore || !activeOutlet) return null;
+    return collection(firestore, 'outlets', activeOutlet.id, 'inventory_assets');
+  }, [firestore, activeOutlet]);
   
   const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsQuery);
 
   const renderContent = () => {
+    if (isLoadingOutlets) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+        </div>
+       );
+    }
     if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">

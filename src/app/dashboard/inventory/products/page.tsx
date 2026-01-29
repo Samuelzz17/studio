@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { MoreHorizontal, Plus, ShoppingCart, Loader } from 'lucide-react';
+import { MoreHorizontal, Plus, Loader } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,17 +34,24 @@ import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 
 export default function ProductsPage() {
   const { firestore } = useFirebase();
-  const { selectedOutletId } = useOutlet();
-  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const isOutletSelected = !!activeOutlet;
 
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_products');
-  }, [firestore, selectedOutletId, isOutletSelected]);
+    if (!firestore || !activeOutlet) return null;
+    return collection(firestore, 'outlets', activeOutlet.id, 'inventory_products');
+  }, [firestore, activeOutlet]);
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);
   
   const renderContent = () => {
+     if (isLoadingOutlets) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+        </div>
+       );
+    }
     if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">

@@ -39,7 +39,7 @@ import { useEffect, useState, useMemo } from 'react';
 export default function Dashboard() {
   const { firestore } = useFirebase();
   const { user } = useUser();
-  const { outlets, selectedOutletId } = useOutlet();
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
 
   const [aggregatedData, setAggregatedData] = useState({
     totalRevenue: 0,
@@ -48,35 +48,32 @@ export default function Dashboard() {
     recentTransactions: [] as (Transaction & { outletName: string })[],
     lowStockItems: [] as (RawMaterial & { outletName: string })[],
   });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   const outletsToQuery = useMemo(() => {
-    if (selectedOutletId === 'all') {
-      return outlets ?? [];
-    }
-    return outlets?.filter(o => o.id === selectedOutletId) ?? [];
-  }, [selectedOutletId, outlets]);
+    if (!activeOutlet) return [];
+    return [activeOutlet];
+  }, [activeOutlet]);
 
 
   useEffect(() => {
     if (!firestore || !user || outletsToQuery.length === 0) {
-        if (!outlets) { // still loading outlets
-            setIsLoading(true);
-        } else { // no outlets to query
-            setIsLoading(false);
-            setAggregatedData({
-                totalRevenue: 0,
-                totalSales: 0,
-                lowStockItemsCount: 0,
-                recentTransactions: [],
-                lowStockItems: [],
-            });
-        }
-        return;
+      // If outlets are still loading, we wait. If not loading and no active outlet, we stop.
+      if (!isLoadingOutlets) {
+        setIsLoadingData(false);
+        setAggregatedData({
+            totalRevenue: 0,
+            totalSales: 0,
+            lowStockItemsCount: 0,
+            recentTransactions: [],
+            lowStockItems: [],
+        });
+      }
+      return;
     }
 
     const fetchData = async () => {
-      setIsLoading(true);
+      setIsLoadingData(true);
 
       const transactionPromises = outletsToQuery.map(outlet => 
         getDocs(query(collection(firestore, `outlets/${outlet.id}/sales`), orderBy('createdAt', 'desc'), limit(10)))
@@ -121,12 +118,13 @@ export default function Dashboard() {
         lowStockItems: lowStockItems,
       });
 
-      setIsLoading(false);
+      setIsLoadingData(false);
     };
 
     fetchData();
-  }, [firestore, user, outletsToQuery, outlets]);
+  }, [firestore, user, outletsToQuery, isLoadingOutlets]);
 
+  const isLoading = isLoadingData || isLoadingOutlets;
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -139,7 +137,7 @@ export default function Dashboard() {
         </h1>
         <div className="flex items-center gap-2">
           <OutletSwitcher />
-          <Button asChild size="sm" disabled={!selectedOutletId || selectedOutletId === 'all'}>
+          <Button asChild size="sm" disabled={!activeOutlet}>
             <Link href="/dashboard/pos">
               <Store className="mr-2 h-4 w-4" />
               Buka POS
@@ -162,7 +160,7 @@ export default function Dashboard() {
                       ${aggregatedData.totalRevenue.toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Based on selected outlet(s)
+                      Based on selected outlet
                     </p>
                   </>}
                 </CardContent>
@@ -213,7 +211,7 @@ export default function Dashboard() {
                 <div className="grid gap-2">
                   <CardTitle>Transactions</CardTitle>
                   <CardDescription>
-                    Recent transactions from your store(s).
+                    Recent transactions from your store.
                   </CardDescription>
                 </div>
                 <Button asChild size="sm" className="ml-auto gap-1">

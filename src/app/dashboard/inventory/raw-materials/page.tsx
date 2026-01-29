@@ -46,17 +46,24 @@ function getStockStatusText(stock: number, minimumStock: number) {
 
 export default function RawMaterialsPage() {
   const { firestore } = useFirebase();
-  const { selectedOutletId } = useOutlet();
-  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
+  const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const isOutletSelected = !!activeOutlet;
 
   const rawMaterialsQuery = useMemoFirebase(() => {
-    if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_raw_materials');
-  }, [firestore, selectedOutletId, isOutletSelected]);
+    if (!firestore || !activeOutlet) return null;
+    return collection(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials');
+  }, [firestore, activeOutlet]);
 
   const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
 
   const renderContent = () => {
+    if (isLoadingOutlets) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+        </div>
+       );
+    }
     if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
