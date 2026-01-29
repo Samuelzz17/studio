@@ -9,6 +9,15 @@ import {
   Boxes,
   DollarSign,
   LineChart,
+  ChevronDown,
+  ShoppingCart,
+  Receipt,
+  Building2,
+  Package,
+  Blend,
+  Chair,
+  BarChart2,
+  PieChart,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -19,15 +28,89 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from '@/components/ui/sidebar';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from './ui/separator';
+import { Button } from './ui/button';
+import React from 'react';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inventory', label: 'Inventory', icon: Boxes },
-  { href: '/sales', label: 'Sales', icon: DollarSign },
-  { href: '/reports', label: 'Reports', icon: LineChart },
+  { 
+    href: '/dashboard', 
+    label: 'Dashboard', 
+    icon: LayoutDashboard 
+  },
+  {
+    label: 'Inventory',
+    icon: Boxes,
+    subItems: [
+      { href: '/dashboard/inventory/products', label: 'Products', icon: Package },
+      { href: '/dashboard/inventory/raw-materials', label: 'Raw Materials', icon: Blend },
+      { href: '/dashboard/inventory/assets', label: 'Assets', icon: Chair },
+    ]
+  },
+  {
+    label: 'Financial',
+    icon: DollarSign,
+    subItems: [
+      { href: '/dashboard/financial/purchases', label: 'Purchases', icon: ShoppingCart },
+      { href: '/dashboard/financial/expenses', label: 'Expenses', icon: Receipt },
+      { href: '/dashboard/financial/asset-purchases', label: 'Asset Purchases', icon: Building2 },
+    ]
+  },
+  {
+    label: 'Reports',
+    icon: BarChart2,
+    subItems: [
+      { href: '/dashboard/reports/sales', label: 'Sales', icon: LineChart },
+      { href: '/dashboard/reports/inventory', label: 'Inventory', icon: Boxes },
+      { href: '/dashboard/reports/finance', label: 'Finance', icon: PieChart },
+    ]
+  }
 ];
+
+const NavCollapsible = ({ item, pathname }: { item: any, pathname: string }) => {
+    const [isOpen, setIsOpen] = React.useState(
+        item.subItems.some((subItem: any) => pathname.startsWith(subItem.href))
+    );
+
+    return (
+        <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
+            <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between h-auto p-2">
+                    <div className="flex items-center gap-2 text-sm">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.label}</span>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pl-4 pt-1">
+                <SidebarMenu>
+                    {item.subItems.map((subItem: any) => (
+                        <SidebarMenuItem key={subItem.href}>
+                            <SidebarMenuButton
+                                asChild
+                                isActive={pathname === subItem.href}
+                                className="justify-start h-8"
+                                tooltip={{ children: subItem.label, side: 'right' }}
+                            >
+                                <Link href={subItem.href}>
+                                    <subItem.icon className="h-4 w-4" />
+                                    <span>{subItem.label}</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarMenu>
+            </CollapsibleContent>
+        </Collapsible>
+    )
+}
 
 export function SiteSidebar() {
   const pathname = usePathname();
@@ -44,21 +127,25 @@ export function SiteSidebar() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-                className="justify-start"
-                tooltip={{ children: item.label, side: 'right' }}
-              >
-                <Link href={item.href}>
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {navItems.map((item) =>
+            item.subItems ? (
+              <NavCollapsible key={item.label} item={item} pathname={pathname} />
+            ) : (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href}
+                  className="justify-start"
+                  tooltip={{ children: item.label, side: 'right' }}
+                >
+                  <Link href={item.href}>
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          )}
         </SidebarMenu>
       </SidebarContent>
       <Separator className="my-2" />

@@ -32,7 +32,7 @@ export default function LoginPage() {
         await seedInitialData(firestore, user.uid);
         console.log('Data seeding complete.');
       }
-      router.push('/');
+      router.push('/dashboard');
     }
   }, [firestore, user, isUserLoading, router]);
 
