@@ -35,6 +35,7 @@ import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
 import type { Transaction, RawMaterial } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { useEffect, useState, useMemo } from 'react';
+import { formatCurrency } from '@/lib/currency';
 
 export default function Dashboard() {
   const { firestore } = useFirebase();
@@ -157,7 +158,7 @@ export default function Dashboard() {
                 <CardContent>
                   {isLoading ? <Loader className="h-6 w-6 animate-spin" /> : <>
                     <div className="text-2xl font-bold">
-                      ${aggregatedData.totalRevenue.toFixed(2)}
+                      {formatCurrency(aggregatedData.totalRevenue)}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Based on selected outlet
@@ -253,7 +254,7 @@ export default function Dashboard() {
                           </TableCell>
   
                           <TableCell className="text-right">
-                            ${sale.total.toFixed(2)}
+                            {formatCurrency(sale.total)}
                           </TableCell>
                         </TableRow>
                       ))

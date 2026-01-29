@@ -33,6 +33,7 @@ import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
+import { formatCurrency } from '@/lib/currency';
 
 type OrderItem = Product & { quantity: number };
 
@@ -133,10 +134,16 @@ export default function POSPage() {
         createdAt: serverTimestamp(),
     };
 
+    const paymentMethodDisplay = {
+        'Cash': 'Tunai',
+        'Card': 'Kartu',
+        'Bank': 'Transfer Bank'
+    };
+
     addDocumentNonBlocking(transactionsCollectionRef, newTransaction);
     toast({
-        title: "Order Placed!",
-        description: `Total: $${total.toFixed(2)} paid with ${paymentMethod}.`,
+        title: "Pesanan Berhasil!",
+        description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
     });
     setOrderItems([]);
     setIsCheckoutSheetOpen(false);
@@ -181,7 +188,7 @@ export default function POSPage() {
                   <CardHeader className="p-4">
                     <CardTitle className="text-lg">{item.name}</CardTitle>
                     <p className="font-semibold text-primary">
-                      ${item.price.toFixed(2)}
+                      {formatCurrency(item.price)}
                     </p>
                   </CardHeader>
                 </Card>
@@ -212,7 +219,7 @@ export default function POSPage() {
                       <div className="flex-1">
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          ${item.price.toFixed(2)}
+                          {formatCurrency(item.price)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -244,16 +251,16 @@ export default function POSPage() {
                 <div className="w-full space-y-2">
                     <div className="flex justify-between">
                         <span>Subtotal</span>
-                        <span>${subtotal.toFixed(2)}</span>
+                        <span>{formatCurrency(subtotal)}</span>
                     </div>
                     <div className="flex justify-between">
                         <span>Taxes (11%)</span>
-                        <span>${tax.toFixed(2)}</span>
+                        <span>{formatCurrency(tax)}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between font-bold text-lg">
                         <span>Total</span>
-                        <span>${total.toFixed(2)}</span>
+                        <span>{formatCurrency(total)}</span>
                     </div>
                 </div>
                 <div className="w-full grid grid-cols-2 gap-2">
@@ -272,22 +279,22 @@ export default function POSPage() {
                       <div className="py-8">
                          <div className="flex justify-between font-bold text-xl mb-6">
                             <span>Total</span>
-                            <span>${total.toFixed(2)}</span>
+                            <span>{formatCurrency(total)}</span>
                         </div>
                         <div className="space-y-4">
                           <SheetClose asChild>
                             <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Card')}>
-                              <CreditCard className="mr-4 h-6 w-6"/> Pay with Card
+                              <CreditCard className="mr-4 h-6 w-6"/> Bayar dengan Kartu
                             </Button>
                           </SheetClose>
                           <SheetClose asChild>
                             <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Cash')}>
-                              <CircleDollarSign className="mr-4 h-6 w-6"/> Pay with Cash
+                              <CircleDollarSign className="mr-4 h-6 w-6"/> Bayar dengan Tunai
                             </Button>
                           </SheetClose>
                           <SheetClose asChild>
                             <Button variant="secondary" className="w-full h-16 text-lg" onClick={() => handleCheckout('Bank')}>
-                                <Landmark className="mr-4 h-6 w-6"/> Pay with Bank
+                                <Landmark className="mr-4 h-6 w-6"/> Bayar dengan Transfer Bank
                             </Button>
                           </SheetClose>
                         </div>

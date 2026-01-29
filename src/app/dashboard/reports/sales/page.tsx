@@ -40,6 +40,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { formatCurrency } from '@/lib/currency';
 
 
 export default function SalesPage() {  
@@ -126,7 +127,7 @@ export default function SalesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${sale.total.toFixed(2)}
+                      {formatCurrency(sale.total)}
                     </TableCell>
                     <TableCell>
                        <DropdownMenu>

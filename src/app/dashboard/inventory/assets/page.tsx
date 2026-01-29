@@ -31,6 +31,7 @@ import { collection } from 'firebase/firestore';
 import type { AssetInvestment } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 export default function AssetsPage() {
   const { firestore } = useFirebase();
@@ -95,7 +96,7 @@ export default function AssetsPage() {
                   assets.filter(item => item.id !== '_init').map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
-                      <TableCell>${item.value.toFixed(2)}</TableCell>
+                      <TableCell>{formatCurrency(item.value)}</TableCell>
                        <TableCell>
                         {item.purchaseDate ? format(item.purchaseDate.toDate(), 'PPP') : 'N/A'}
                        </TableCell>

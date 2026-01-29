@@ -23,6 +23,7 @@ import { collection, query } from 'firebase/firestore';
 import type { Transaction, Product } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { Loader } from 'lucide-react';
+import { formatCurrency } from '@/lib/currency';
 
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
@@ -110,7 +111,13 @@ export default function FinanceReportPage() {
   const chartConfigSalesByHour = {
     sales: { label: "Sales", color: "hsl(var(--chart-2))" },
   };
-  
+
+  const compactCurrencyFormatter = (value: number) =>
+    new Intl.NumberFormat('id-ID', {
+      notation: 'compact',
+      compactDisplay: 'short',
+    }).format(value);
+
   const renderContent = () => {
     if (isLoadingOutlets) {
       return (
@@ -150,8 +157,8 @@ export default function FinanceReportPage() {
                   tickMargin={10}
                   axisLine={false}
                 />
-                <YAxis unit="$" />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <YAxis tickFormatter={(value) => `Rp ${compactCurrencyFormatter(value as number)}`} />
+                <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} />} />
                 <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
               </BarChart>
             </ChartContainer>
@@ -195,8 +202,8 @@ export default function FinanceReportPage() {
                 <LineChart data={salesByHour} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                     <XAxis dataKey="hour"/>
-                    <YAxis unit="$"/>
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <YAxis tickFormatter={(value) => `Rp ${compactCurrencyFormatter(value as number)}`}/>
+                    <ChartTooltip content={<ChartTooltipContent formatter={(value) => formatCurrency(value as number)} />} />
                     <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} />
                 </LineChart>
             </ChartContainer>

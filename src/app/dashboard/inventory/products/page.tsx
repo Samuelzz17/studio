@@ -31,6 +31,7 @@ import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { Product } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ProductsPage() {
   const { firestore } = useFirebase();
@@ -97,7 +98,7 @@ export default function ProductsPage() {
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>{item.category}</TableCell>
-                      <TableCell>${item.price.toFixed(2)}</TableCell>
+                      <TableCell>{formatCurrency(item.price)}</TableCell>
                        <TableCell>
                         <Badge variant={item.active ? 'default' : 'outline'}>
                             {item.active ? 'Active' : 'Inactive'}
