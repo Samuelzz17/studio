@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -48,10 +47,12 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!firestore || isUserDataLoading) {
+      setIsLoading(true); // Keep loading state true if we are not ready to fetch
       return;
     }
 
-    if (!userData || !Array.isArray(userData.outletAccess) || userData.outletAccess.length === 0) {
+    // Guard clause: handles if user doc doesn't exist, or outletAccess is missing/not an array.
+    if (!userData || !Array.isArray(userData.outletAccess)) {
       setOutlets([]);
       setIsLoading(false);
       return;
@@ -62,10 +63,18 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
     const fetchOutlets = async () => {
       setIsLoading(true);
-      const outletIds = userData.outletAccess;
+      
+      // Defensively filter for valid, non-empty string IDs
+      const validOutletIds = userData.outletAccess.filter(id => typeof id === 'string' && id.trim().length > 0);
+      
+      if (validOutletIds.length === 0) {
+        setOutlets([]);
+        setIsLoading(false);
+        return;
+      }
 
       try {
-        const outletDocsPromises = outletIds.map(id => getDoc(doc(firestore, "outlets", id)));
+        const outletDocsPromises = validOutletIds.map(id => getDoc(doc(firestore, "outlets", id)));
         const outletDocsSnaps = await Promise.all(outletDocsPromises);
 
         const fetchedOutlets = outletDocsSnaps
