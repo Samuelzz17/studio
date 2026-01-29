@@ -3,73 +3,79 @@ import {
   Firestore,
   collection,
   doc,
-  getDocs,
-  query,
+  getDoc,
+  serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { menuItems, rawMaterials, assets } from '@/lib/data';
+import { defaultProducts, defaultRawMaterials, defaultAssets } from '@/lib/data';
 
-const locationNames = ['SR Gadjah Mada', 'SR Jalur 11'];
+const outletDefinitions = [
+    { id: 'sr_gadjah_mada', name: 'SR Gadjah Mada', code: 'SRGM' },
+    { id: 'sr_jalur_11', name: 'SR Jalur 11', code: 'SRJ11' }
+];
 
 /**
- * Checks if a user has any locations set up.
+ * Checks if a user document exists in Firestore.
  * @param db The Firestore instance.
  * @param userId The user's ID.
- * @returns True if locations exist, false otherwise.
+ * @returns True if the user document exists, false otherwise.
  */
-export async function hasLocations(
-  db: Firestore,
-  userId: string
-): Promise<boolean> {
-  const locationsColRef = collection(db, `users/${userId}/locations`);
-  const q = query(locationsColRef);
-  const snapshot = await getDocs(q);
-  return !snapshot.empty;
+export async function hasUserData(db: Firestore, userId: string): Promise<boolean> {
+  const userDocRef = doc(db, `users/${userId}`);
+  const docSnap = await getDoc(userDocRef);
+  return docSnap.exists();
 }
 
 /**
- * Seeds initial data for a new user, creating two default locations
- * and populating them with menu items, raw materials, and assets.
+ * Seeds initial data for a new user, creating outlets and a user profile.
  * @param db The Firestore instance.
  * @param userId The user's ID.
  */
 export async function seedInitialData(db: Firestore, userId: string) {
   const batch = writeBatch(db);
+  const now = serverTimestamp();
 
-  // Create location documents
-  const locationIds = locationNames.map((name) => {
-    const locRef = doc(collection(db, `users/${userId}/locations`));
-    batch.set(locRef, { name });
-    return locRef.id;
-  });
+  // 1. Create Outlet documents and their inventory
+  for (const outletDef of outletDefinitions) {
+    const outletId = outletDef.id;
 
-  // For each new location, add all default items
-  locationIds.forEach((locationId) => {
-    // Add Menu Items
-    menuItems.forEach((item) => {
-      const itemRef = doc(
-        collection(db, `users/${userId}/locations/${locationId}/menuItems`)
-      );
-      batch.set(itemRef, { ...item, id: itemRef.id }); // Use doc id as item id
+    // Create outlet info document
+    const outletInfoRef = doc(db, `outlets/${outletId}/info/details`);
+    batch.set(outletInfoRef, {
+        name: outletDef.name,
+        code: outletDef.code,
+        active: true,
+        createdAt: now
+    });
+
+    // Add Products
+    defaultProducts.forEach((product) => {
+      const itemRef = doc(collection(db, `outlets/${outletId}/inventory/products`));
+      batch.set(itemRef, { ...product, createdAt: now });
     });
 
     // Add Raw Materials
-    rawMaterials.forEach((material) => {
-      const materialRef = doc(
-        collection(db, `users/${userId}/locations/${locationId}/ingredients`)
-      );
-      batch.set(materialRef, { ...material, id: materialRef.id });
+    defaultRawMaterials.forEach((material) => {
+      const materialRef = doc(collection(db, `outlets/${outletId}/inventory/raw_materials`));
+      batch.set(materialRef, { ...material, createdAt: now });
     });
 
     // Add Assets
-    assets.forEach((asset) => {
-      const assetRef = doc(
-        collection(db, `users/${userId}/locations/${locationId}/assets`)
-      );
-      batch.set(assetRef, { ...asset, id: assetRef.id });
+    defaultAssets.forEach((asset) => {
+      const assetRef = doc(collection(db, `outlets/${outletId}/inventory/asset_investments`));
+      batch.set(assetRef, { ...asset, purchaseDate: now, createdAt: now });
     });
+  }
+
+  // 2. Create the User document
+  const userDocRef = doc(db, `users/${userId}`);
+  batch.set(userDocRef, {
+    name: 'Admin User',
+    role: 'owner',
+    outletAccess: outletDefinitions.map(o => o.id), // Grant access to all outlets
+    createdAt: now,
   });
 
-  // Commit the batch write
+  // Commit all writes at once
   await batch.commit();
 }

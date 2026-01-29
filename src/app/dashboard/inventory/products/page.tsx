@@ -29,30 +29,31 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { MenuItem } from '@/lib/data';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import type { Product } from '@/lib/data';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 
 export default function ProductsPage() {
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
-  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
+  const { firestore } = useFirebase();
+  const { selectedOutletId } = useOutlet();
+  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
 
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isLocationSelected) return null;
-    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'menuItems');
-  }, [firestore, user, selectedLocationId, isLocationSelected]);
-  const { data: products, isLoading: isLoadingProducts } = useCollection<MenuItem>(productsQuery);
+    if (!firestore || !isOutletSelected) return null;
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory/products');
+  }, [firestore, selectedOutletId, isOutletSelected]);
+
+  const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);
   
   const renderContent = () => {
-    if (!isLocationSelected) {
+    if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
           <div className="flex flex-col items-center gap-1 text-center">
             <h3 className="text-2xl font-bold tracking-tight">
-              Please select a location
+              Please select an outlet
             </h3>
             <p className="text-sm text-muted-foreground">
-              You need to select a location to see the products.
+              You need to select an outlet to see the products.
             </p>
           </div>
         </div>
@@ -71,6 +72,7 @@ export default function ProductsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -79,7 +81,7 @@ export default function ProductsPage() {
               <TableBody>
                 {isLoadingProducts ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       <Loader className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
@@ -89,6 +91,11 @@ export default function ProductsPage() {
                       <TableCell>{item.name}</TableCell>
                       <TableCell>{item.category}</TableCell>
                       <TableCell>${item.price.toFixed(2)}</TableCell>
+                       <TableCell>
+                        <Badge variant={item.active ? 'default' : 'outline'}>
+                            {item.active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -100,7 +107,6 @@ export default function ProductsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Purchase</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">
                               Delete
                             </DropdownMenuItem>
@@ -111,7 +117,7 @@ export default function ProductsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       No products found.
                     </TableCell>
                   </TableRow>
@@ -135,12 +141,8 @@ export default function ProductsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-            <LocationSwitcher />
-          <Button size="sm" variant="outline" disabled={!isLocationSelected}>
-             <ShoppingCart className="h-4 w-4 mr-2" />
-            Purchase Item
-          </Button>
-          <Button size="sm" disabled={!isLocationSelected}>
+            <OutletSwitcher />
+          <Button size="sm" disabled={!isOutletSelected}>
             <Plus className="h-4 w-4 mr-2" />
             Add Item
           </Button>

@@ -28,30 +28,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
-import type { Asset } from '@/lib/data';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import type { AssetInvestment } from '@/lib/data';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { format } from 'date-fns';
 
 export default function AssetsPage() {
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
-  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
+  const { firestore } = useFirebase();
+  const { selectedOutletId } = useOutlet();
+  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
 
   const assetsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isLocationSelected) return null;
-    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'assets');
-  }, [firestore, user, selectedLocationId, isLocationSelected]);
-  const { data: assets, isLoading: isLoadingAssets } = useCollection<Asset>(assetsQuery);
+    if (!firestore || !isOutletSelected) return null;
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory/asset_investments');
+  }, [firestore, selectedOutletId, isOutletSelected]);
+  
+  const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsQuery);
 
   const renderContent = () => {
-    if (!isLocationSelected) {
+    if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
           <div className="flex flex-col items-center gap-1 text-center">
             <h3 className="text-2xl font-bold tracking-tight">
-              Please select a location
+              Please select an outlet
             </h3>
             <p className="text-sm text-muted-foreground">
-              You need to select a location to see the assets.
+              You need to select an outlet to see the assets.
             </p>
           </div>
         </div>
@@ -60,7 +62,7 @@ export default function AssetsPage() {
     return (
         <Card>
           <CardHeader>
-            <CardTitle>Assets</CardTitle>
+            <CardTitle>Asset Investments</CardTitle>
             <CardDescription>Non-sellable items like equipment and furniture.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -68,7 +70,8 @@ export default function AssetsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
-                  <TableHead>Quantity</TableHead>
+                  <TableHead>Value</TableHead>
+                  <TableHead>Purchase Date</TableHead>
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -77,7 +80,7 @@ export default function AssetsPage() {
               <TableBody>
                 {isLoadingAssets ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">
+                    <TableCell colSpan={4} className="text-center">
                       <Loader className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
@@ -85,7 +88,10 @@ export default function AssetsPage() {
                   assets.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
-                      <TableCell>{`${item.quantity} ${item.unitOfMeasurement}`}</TableCell>
+                      <TableCell>${item.value.toFixed(2)}</TableCell>
+                       <TableCell>
+                        {item.purchaseDate ? format(item.purchaseDate.toDate(), 'PPP') : 'N/A'}
+                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -97,7 +103,6 @@ export default function AssetsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Purchase</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">
                               Delete
                             </DropdownMenuItem>
@@ -108,7 +113,7 @@ export default function AssetsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center">
+                    <TableCell colSpan={4} className="text-center">
                       No assets found.
                     </TableCell>
                   </TableRow>
@@ -132,12 +137,12 @@ export default function AssetsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-            <LocationSwitcher />
-          <Button size="sm" variant="outline" disabled={!isLocationSelected}>
+            <OutletSwitcher />
+          <Button size="sm" variant="outline" disabled={!isOutletSelected}>
              <ShoppingCart className="h-4 w-4 mr-2" />
             Purchase Item
           </Button>
-          <Button size="sm" disabled={!isLocationSelected}>
+          <Button size="sm" disabled={!isOutletSelected}>
             <Plus className="h-4 w-4 mr-2" />
             Add Item
           </Button>

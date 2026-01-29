@@ -3,18 +3,18 @@
 
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { SiteSidebar } from '@/components/SiteSidebar';
-import { LocationProvider } from '@/components/LocationContext';
+import { OutletProvider } from '@/components/OutletContext';
 import withAuth from '@/components/withAuth';
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <LocationProvider>
+      <OutletProvider>
         <SiteSidebar />
         <SidebarInset>
           <main>{children}</main>
         </SidebarInset>
-      </LocationProvider>
+      </OutletProvider>
     </SidebarProvider>
   );
 }

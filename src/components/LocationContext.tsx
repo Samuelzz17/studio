@@ -7,10 +7,11 @@ import {
   useState,
   useEffect,
   type ReactNode,
+  useMemo,
 } from 'react';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
-import type { Location } from '@/lib/data';
+import { useFirebase, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, doc, getDoc, getDocs, query } from 'firebase/firestore';
+import type { User, OutletInfo } from '@/lib/data';
 import {
   Select,
   SelectContent,
@@ -20,70 +21,89 @@ import {
 } from '@/components/ui/select';
 import { Loader } from 'lucide-react';
 
-interface LocationContextType {
-  locations: Location[] | null;
-  selectedLocationId: string | null;
-  setSelectedLocationId: (id: string) => void;
+interface OutletContextType {
+  outlets: OutletInfo[] | null;
+  selectedOutletId: string | null;
+  setSelectedOutletId: (id: string) => void;
   isLoading: boolean;
 }
 
-const LocationContext = createContext<LocationContextType | undefined>(
-  undefined
-);
+const OutletContext = createContext<OutletContextType | undefined>(undefined);
 
-export function LocationProvider({ children }: { children: ReactNode }) {
-  const { firestore, user } = useFirebase();
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
-    'all'
-  );
+export function OutletProvider({ children }: { children: ReactNode }) {
+  const { firestore } = useFirebase();
+  const { user: authUser, isUserLoading } = useUser();
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>('all');
+  const [outlets, setOutlets] = useState<OutletInfo[] | null>(null);
+  const [isLoadingOutlets, setIsLoadingOutlets] = useState(true);
 
-  const locationsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, `users/${user.uid}/locations`);
-  }, [firestore, user]);
+  const userDocRef = useMemoFirebase(() => {
+     if (!firestore || !authUser) return null;
+     return doc(firestore, `users/${authUser.uid}`);
+  }, [firestore, authUser]);
 
-  const { data: locations, isLoading } = useCollection<Location>(locationsQuery);
+  const { data: userData, isLoading: isLoadingUserDoc } = useDoc<User>(userDocRef);
 
   useEffect(() => {
-    if (
-      !isLoading &&
-      locations &&
-      locations.length > 0 &&
-      selectedLocationId === null
-    ) {
-      setSelectedLocationId('all');
-    }
-  }, [locations, isLoading, selectedLocationId]);
+    const fetchOutlets = async () => {
+      if (!firestore || !userData || !userData.outletAccess) {
+        if (!isLoadingUserDoc && !isUserLoading) {
+            setOutlets([]);
+            setIsLoadingOutlets(false);
+        }
+        return;
+      }
+      
+      setIsLoadingOutlets(true);
+      try {
+        const outletPromises = userData.outletAccess.map(outletId =>
+          getDoc(doc(firestore, `outlets/${outletId}/info/details`))
+        );
+        const outletSnapshots = await Promise.all(outletPromises);
+        const fetchedOutlets = outletSnapshots
+            .filter(snap => snap.exists())
+            .map(snap => ({ id: snap.ref.parent.parent!.id, ...snap.data() } as OutletInfo));
+        
+        setOutlets(fetchedOutlets);
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+        setOutlets([]);
+      } finally {
+        setIsLoadingOutlets(false);
+      }
+    };
+
+    fetchOutlets();
+  }, [firestore, userData, isLoadingUserDoc, isUserLoading]);
+
 
   const value = {
-    locations,
-    selectedLocationId,
-    setSelectedLocationId: (id: string) => setSelectedLocationId(id),
-    isLoading,
+    outlets,
+    selectedOutletId,
+    setSelectedOutletId: (id: string) => setSelectedOutletId(id),
+    isLoading: isLoadingOutlets || isLoadingUserDoc || isUserLoading,
   };
 
   return (
-    <LocationContext.Provider value={value}>
-      {children}
-    </LocationContext.Provider>
+    <OutletContext.Provider value={value}>{children}</OutletContext.Provider>
   );
 }
 
-export function useLocation() {
-  const context = useContext(LocationContext);
+export function useOutlet() {
+  const context = useContext(OutletContext);
   if (context === undefined) {
-    throw new Error('useLocation must be used within a LocationProvider');
+    throw new Error('useOutlet must be used within an OutletProvider');
   }
   return context;
 }
 
-export function LocationSwitcher() {
+export function OutletSwitcher() {
   const {
-    locations,
-    selectedLocationId,
-    setSelectedLocationId,
+    outlets,
+    selectedOutletId,
+    setSelectedOutletId,
     isLoading,
-  } = useLocation();
+  } = useOutlet();
 
   if (isLoading) {
     return <Loader className="h-4 w-4 animate-spin" />;
@@ -91,17 +111,18 @@ export function LocationSwitcher() {
 
   return (
     <Select
-      value={selectedLocationId ?? ''}
-      onValueChange={setSelectedLocationId}
+      value={selectedOutletId ?? ''}
+      onValueChange={setSelectedOutletId}
+      disabled={!outlets || outlets.length === 0}
     >
       <SelectTrigger className="w-[180px] text-sm">
-        <SelectValue placeholder="Select Location" />
+        <SelectValue placeholder="Select Outlet" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All Locations</SelectItem>
-        {locations?.map((loc) => (
-          <SelectItem key={loc.id} value={loc.id}>
-            {loc.name}
+        <SelectItem value="all">All Outlets</SelectItem>
+        {outlets?.map((outlet) => (
+          <SelectItem key={outlet.id} value={outlet.id}>
+            {outlet.name}
           </SelectItem>
         ))}
       </SelectContent>

@@ -39,34 +39,34 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 
 
 export default function SalesPage() {  
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
-  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
+  const { firestore } = useFirebase();
+  const { selectedOutletId } = useOutlet();
+  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
 
   const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isLocationSelected) return null;
+    if (!firestore || !isOutletSelected) return null;
     return query(
-        collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'transactions'),
-        orderBy('timestamp', 'desc')
+        collection(firestore, `outlets/${selectedOutletId}/pos/transactions`),
+        orderBy('createdAt', 'desc')
     );
-  }, [firestore, user, selectedLocationId, isLocationSelected]);
+  }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: sales, isLoading: isLoadingSales } = useCollection<Transaction>(transactionsQuery);
 
   const renderContent = () => {
-    if (!isLocationSelected) {
+    if (!isOutletSelected) {
        return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm">
           <div className="flex flex-col items-center gap-1 text-center">
             <h3 className="text-2xl font-bold tracking-tight">
-              Please select a location
+              Please select an outlet
             </h3>
             <p className="text-sm text-muted-foreground">
-              You need to select a location from the dropdown above to see its sales history.
+              You need to select an outlet from the dropdown above to see its sales history.
             </p>
           </div>
         </div>
@@ -79,15 +79,14 @@ export default function SalesPage() {
           <CardHeader>
             <CardTitle>Transactions</CardTitle>
             <CardDescription>
-              A complete list of all sales transactions.
+              A complete list of all sales transactions for the selected outlet.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Customer</TableHead>
+                  <TableHead>Invoice</TableHead>
                   <TableHead className="hidden md:table-cell">Date</TableHead>
                   <TableHead className="hidden md:table-cell">Items</TableHead>
                   <TableHead>Payment</TableHead>
@@ -100,20 +99,19 @@ export default function SalesPage() {
               <TableBody>
                 {isLoadingSales ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={6} className="text-center">
                       <Loader className="mx-auto h-6 w-6 animate-spin" />
                     </TableCell>
                   </TableRow>
                 ) : (
                 sales?.map((sale) => (
                   <TableRow key={sale.id}>
-                    <TableCell className="font-mono text-xs">{sale.id.substring(0, 7)}</TableCell>
-                    <TableCell className="font-medium">Anonymous</TableCell>
+                    <TableCell className="font-mono text-xs">{sale.invoice}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {sale.timestamp?.toDate().toLocaleString()}
+                      {sale.createdAt?.toDate().toLocaleString()}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {sale.menuItemIds.length}
+                      {sale.items.reduce((acc, item) => acc + item.qty, 0)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={sale.paymentMethod === 'Card' ? 'default' : 'secondary'}>
@@ -121,7 +119,7 @@ export default function SalesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${sale.totalCost.toFixed(2)}
+                      ${sale.total.toFixed(2)}
                     </TableCell>
                     <TableCell>
                        <DropdownMenu>
@@ -182,7 +180,7 @@ export default function SalesPage() {
         <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
           Sales History Report
         </h1>
-        <LocationSwitcher />
+        <OutletSwitcher />
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
        {renderContent()}

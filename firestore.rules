@@ -1,24 +1,32 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    
     // Helper function to check if a user is signed in
     function isSignedIn() {
       return request.auth != null;
     }
-
-    // Helper function to check if the user owns the data
+    
+    // Helper function to check if the requesting user is the owner of the document
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
-    // Secure all user data under a top-level `users` collection.
-    // This rule uses a recursive wildcard (`{path=**}`) to match any document
-    // at any depth beneath a user's personal document (`/users/{userId}`).
-    // It grants read and write access only if the requesting user's UID
-    // matches the `userId` in the document path.
-    match /users/{userId}/{path=**} {
+    
+    // Users can read and write to their own user document
+    match /users/{userId} {
       allow read, write: if isSignedIn() && isOwner(userId);
+    }
+    
+    // For simplicity in this stage, any authenticated user can read/write to any outlet.
+    // In a production app with roles, you would add more granular checks here,
+    // for example, by reading the user's document to check their `outletAccess` array.
+    // function hasOutletAccess(outletId) {
+    //   return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outletAccess.hasAny([outletId]);
+    // }
+    match /outlets/{outletId}/{path=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }

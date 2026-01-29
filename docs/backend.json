@@ -1,123 +1,141 @@
 
 {
   "entities": {
-    "Location": {
-      "title": "Location",
+    "User": {
+      "title": "User",
       "type": "object",
-      "description": "Represents a single business location or outlet.",
+      "description": "Represents an application user.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the location."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the location (e.g., 'SR Gadjah Mada')."
-        }
-      },
-      "required": ["id", "name"]
-    },
-    "MenuItem": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "MenuItem",
-      "type": "object",
-      "description": "Represents a single item on the restaurant's menu.",
-      "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
-        "description": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "operator"] },
+        "outletAccess": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "role", "outletAccess", "createdAt"]
+    },
+    "OutletInfo": {
+      "title": "Outlet Info",
+      "type": "object",
+      "description": "Core information about a business outlet.",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "active", "createdAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "type": "object",
+      "description": "A sellable product in the inventory.",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
         "price": { "type": "number" },
-        "imageUrl": { "type": "string" },
-        "category": { "type": "string" }
+        "cost": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "price", "imageUrl", "category"]
+      "required": ["name", "category", "price", "cost", "active", "createdAt"]
     },
-    "Ingredient": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Ingredient",
+    "RawMaterial": {
+      "title": "Raw Material",
       "type": "object",
-      "description": "Represents an ingredient used in menu items (Raw Material).",
+      "description": "An ingredient or raw material for products.",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
-        "stockLevel": { "type": "number" },
-        "unitOfMeasurement": { "type": "string" },
-        "lowStockThreshold": { "type": "number" }
+        "unit": { "type": "string", "enum": ["kg", "g", "L", "mL", "pcs"] },
+        "stock": { "type": "number" },
+        "minimumStock": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "stockLevel", "unitOfMeasurement", "lowStockThreshold"]
+      "required": ["name", "unit", "stock", "minimumStock", "createdAt"]
     },
-    "Asset": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Asset",
+    "AssetInvestment": {
+      "title": "Asset Investment",
       "type": "object",
-      "description": "Represents a non-sellable business asset.",
+      "description": "A non-sellable business asset.",
       "properties": {
-        "id": { "type": "string" },
         "name": { "type": "string" },
-        "quantity": { "type": "number" },
-        "unitOfMeasurement": { "type": "string" }
+        "value": { "type": "number" },
+        "purchaseDate": { "type": "string", "format": "date-time" },
+        "depreciationYears": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "quantity", "unitOfMeasurement"]
+      "required": ["name", "value", "purchaseDate", "createdAt"]
     },
     "Transaction": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Transaction",
       "type": "object",
-      "description": "Represents a single customer transaction.",
+      "description": "A single POS transaction.",
       "properties": {
-        "id": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" },
-        "totalCost": { "type": "number" },
+        "invoice": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "qty": { "type": "number" },
+              "price": { "type": "number" }
+            },
+            "required": ["productId", "qty", "price"]
+          }
+        },
+        "total": { "type": "number" },
         "paymentMethod": { "type": "string" },
-        "menuItemIds": { "type": "array", "items": { "type": "string" } }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "timestamp", "totalCost", "paymentMethod"]
+      "required": ["invoice", "items", "total", "paymentMethod", "createdAt"]
     }
   },
   "auth": {
     "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "reasoning": "The structure is multi-tenant by user, and then multi-location within each user. All primary data collections (menuItems, ingredients, etc.) are nested under a specific location, which is nested under the user. This ensures data isolation between users and between locations.",
+    "reasoning": "This architecture separates user management from operational data. The top-level 'users' collection handles authentication and access control. The 'outlets' collection contains all business data, strictly siloed by outlet. This ensures data integrity and scalability for a multi-outlet business model. All queries for operational data must be scoped to a specific outlet.",
     "structure": [
       {
-        "path": "/users/{userId}/locations/{locationId}",
+        "path": "/users/{userId}",
         "definition": {
-          "entityName": "Location",
-          "schema": { "$ref": "#/entities/Location" },
-          "description": "A user's business locations (outlets)."
+          "schema": { "$ref": "#/entities/User" },
+          "description": "Stores user-specific data like role and outlet access."
         }
       },
       {
-        "path": "/users/{userId}/locations/{locationId}/menuItems/{menuItemId}",
+        "path": "/outlets/{outletId}/info/details",
         "definition": {
-          "entityName": "MenuItem",
-          "schema": { "$ref": "#/entities/MenuItem" },
-          "description": "Menu items for a specific location."
+          "schema": { "$ref": "#/entities/OutletInfo" },
+          "description": "Singleton document containing core info for an outlet."
         }
       },
       {
-        "path": "/users/{userId}/locations/{locationId}/ingredients/{ingredientId}",
+        "path": "/outlets/{outletId}/inventory/products/{productId}",
         "definition": {
-          "entityName": "Ingredient",
-          "schema": { "$ref": "#/entities/Ingredient" },
-          "description": "Ingredients for a specific location."
+          "schema": { "$ref": "#/entities/Product" },
+          "description": "Sellable products for a specific outlet."
         }
       },
       {
-        "path": "/users/{userId}/locations/{locationId}/assets/{assetId}",
+        "path": "/outlets/{outletId}/inventory/raw_materials/{materialId}",
         "definition": {
-          "entityName": "Asset",
-          "schema": { "$ref": "#/entities/Asset" },
-          "description": "Assets for a specific location."
+          "schema": { "$ref": "#/entities/RawMaterial" },
+          "description": "Raw materials for a specific outlet."
         }
       },
       {
-        "path": "/users/{userId}/locations/{locationId}/transactions/{transactionId}",
+        "path": "/outlets/{outletId}/inventory/asset_investments/{assetId}",
         "definition": {
-          "entityName": "Transaction",
+          "schema": { "$ref": "#/entities/AssetInvestment" },
+          "description": "Asset investments for a specific outlet."
+        }
+      },
+      {
+        "path": "/outlets/{outletId}/pos/transactions/{transactionId}",
+        "definition": {
           "schema": { "$ref": "#/entities/Transaction" },
-          "description": "Transactions for a specific location."
+          "description": "POS transactions for a specific outlet."
         }
       }
     ]

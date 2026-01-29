@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell, Line, LineChart, ResponsiveContainer } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell, Line, LineChart } from 'recharts';
 import {
   Card,
   CardContent,
@@ -19,46 +19,59 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { useMemo } from 'react';
-import { collection } from 'firebase/firestore';
-import type { Transaction } from '@/lib/data';
-import { menuItems } from '@/lib/data';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import { collection, query } from 'firebase/firestore';
+import type { Transaction, Product } from '@/lib/data';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function FinanceReportPage() {
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
-  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
+  const { firestore } = useFirebase();
+  const { selectedOutletId } = useOutlet();
+  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
 
   const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isLocationSelected) return null;
-    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'transactions');
-  }, [firestore, user, selectedLocationId, isLocationSelected]);
+    if (!firestore || !isOutletSelected) return null;
+    return query(collection(firestore, `outlets/${selectedOutletId}/pos/transactions`));
+  }, [firestore, selectedOutletId, isOutletSelected]);
+  
+  const productsQuery = useMemoFirebase(() => {
+    if (!firestore || !isOutletSelected) return null;
+    return query(collection(firestore, `outlets/${selectedOutletId}/inventory/products`));
+  }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: sales } = useCollection<Transaction>(transactionsQuery);
+  const { data: products } = useCollection<Product>(productsQuery);
+
+  const productMap = useMemo(() => {
+    if (!products) return new Map();
+    return new Map(products.map(p => [p.id, p]));
+  }, [products]);
 
   const salesByCategory = useMemo(() => {
-    if (!sales) return [];
-    const categoryMap: { [key: string]: number } = { Coffee: 0, Pastries: 0, Food: 0 };
-    sales?.forEach(sale => {
-      sale.menuItemIds.forEach(itemId => {
-        const menuItem = menuItems.find(mi => mi.id === itemId);
-        if (menuItem && menuItem.category in categoryMap) {
-            categoryMap[menuItem.category] += 1;
-        } 
+    if (!sales || productMap.size === 0) return [];
+    const categoryMap: { [key: string]: number } = {};
+    sales.forEach(sale => {
+      sale.items.forEach(item => {
+        const product = productMap.get(item.productId);
+        if (product) {
+          if (!categoryMap[product.category]) {
+            categoryMap[product.category] = 0;
+          }
+          categoryMap[product.category] += item.qty;
+        }
       });
     });
     return Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
-  }, [sales]);
+  }, [sales, productMap]);
   
   const salesByHour = useMemo(() => {
     if (!sales) return [];
     const hourMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 }));
-     sales?.forEach(sale => {
-        const hour = sale.timestamp.toDate().getHours();
-        hourMap[hour].sales += sale.totalCost;
+     sales.forEach(sale => {
+        const hour = sale.createdAt.toDate().getHours();
+        hourMap[hour].sales += sale.total;
      });
      return hourMap.filter(h => h.sales > 0);
   }, [sales]);
@@ -66,21 +79,22 @@ export default function FinanceReportPage() {
   const dailyRevenue = useMemo(() => {
     if (!sales) return [];
     const revenueMap: { [key: string]: number } = {};
-    sales?.forEach(sale => {
-      const date = sale.timestamp.toDate().toLocaleDateString('en-CA');
+    sales.forEach(sale => {
+      const date = sale.createdAt.toDate().toLocaleDateString('en-CA');
       if (!revenueMap[date]) {
         revenueMap[date] = 0;
       }
-      revenueMap[date] += sale.totalCost;
+      revenueMap[date] += sale.total;
     });
-    return Object.entries(revenueMap).map(([date, revenue]) => ({ date: new Date(date).toLocaleDateString('en-US', { weekday: 'short'}), revenue })).slice(-7); // Last 7 days
+    return Object.entries(revenueMap).map(([date, revenue]) => ({ date: new Date(date).toLocaleDateString('en-US', { weekday: 'short'}), revenue })).slice(-7);
   }, [sales]);
 
   const chartConfigCategory = {
     value: { label: "Items Sold" },
-    Coffee: { label: "Coffee", color: "hsl(var(--chart-1))" },
-    Pastries: { label: "Pastries", color: "hsl(var(--chart-2))" },
-    Food: { label: "Food", color: "hsl(var(--chart-3))" },
+    ...salesByCategory.reduce((acc, cat) => {
+        acc[cat.name] = { label: cat.name, color: COLORS[Object.keys(acc).length % COLORS.length] };
+        return acc;
+    }, {} as any)
   };
   
   const chartConfigDailyRevenue = {
@@ -92,15 +106,15 @@ export default function FinanceReportPage() {
   };
   
   const renderContent = () => {
-    if (!isLocationSelected) {
+    if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
           <div className="flex flex-col items-center gap-1 text-center">
             <h3 className="text-2xl font-bold tracking-tight">
-              Please select a location
+              Please select an outlet
             </h3>
             <p className="text-sm text-muted-foreground">
-              You need to select a location to see its reports.
+              You need to select an outlet to see its reports.
             </p>
           </div>
         </div>
@@ -188,7 +202,7 @@ export default function FinanceReportPage() {
         <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
           Financial Reports
         </h1>
-        <LocationSwitcher />
+        <OutletSwitcher />
       </header>
       <main className="flex-1 p-4 md:p-6">
         {renderContent()}

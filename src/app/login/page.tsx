@@ -15,7 +15,7 @@ import {
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { Loader } from 'lucide-react';
-import { hasLocations, seedInitialData } from '@/lib/seed';
+import { hasUserData, seedInitialData } from '@/lib/seed';
 
 export default function LoginPage() {
   const auth = useAuth();
@@ -23,11 +23,10 @@ export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
-  // A memoized function to handle seeding data
   const ensureDataIsSeeded = useCallback(async () => {
     if (firestore && user && !isUserLoading) {
-      const userHasLocations = await hasLocations(firestore, user.uid);
-      if (!userHasLocations) {
+      const userHasData = await hasUserData(firestore, user.uid);
+      if (!userHasData) {
         console.log('New user detected, seeding initial data...');
         await seedInitialData(firestore, user.uid);
         console.log('Data seeding complete.');

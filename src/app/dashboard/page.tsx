@@ -30,74 +30,86 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, collectionGroup, getDocs, query } from 'firebase/firestore';
+import { useFirebase, useUser } from '@/firebase';
+import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
 import type { Transaction, RawMaterial } from '@/lib/data';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
-import { useEffect, useState } from 'react';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { useEffect, useState, useMemo } from 'react';
 
 export default function Dashboard() {
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId, locations } = useLocation();
+  const { firestore } = useFirebase();
+  const { user } = useUser();
+  const { outlets, selectedOutletId } = useOutlet();
 
   const [aggregatedData, setAggregatedData] = useState({
     totalRevenue: 0,
     totalSales: 0,
     lowStockItemsCount: 0,
-    recentTransactions: [] as Transaction[],
-    lowStockItems: [] as RawMaterial[],
+    recentTransactions: [] as (Transaction & { outletName: string })[],
+    lowStockItems: [] as (RawMaterial & { outletName: string })[],
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  const outletsToQuery = useMemo(() => {
+    if (selectedOutletId === 'all') {
+      return outlets ?? [];
+    }
+    return outlets?.filter(o => o.id === selectedOutletId) ?? [];
+  }, [selectedOutletId, outlets]);
+
+
   useEffect(() => {
-    if (!firestore || !user) return;
+    if (!firestore || !user || outletsToQuery.length === 0) {
+        if (!outlets) { // still loading outlets
+            setIsLoading(true);
+        } else { // no outlets to query
+            setIsLoading(false);
+            setAggregatedData({
+                totalRevenue: 0,
+                totalSales: 0,
+                lowStockItemsCount: 0,
+                recentTransactions: [],
+                lowStockItems: [],
+            });
+        }
+        return;
+    }
 
     const fetchData = async () => {
       setIsLoading(true);
 
-      let transactionPaths: string[] = [];
-      let ingredientPaths: string[] = [];
-
-      if (selectedLocationId === 'all') {
-        if (locations) {
-          transactionPaths = locations.map(loc => `users/${user.uid}/locations/${loc.id}/transactions`);
-          ingredientPaths = locations.map(loc => `users/${user.uid}/locations/${loc.id}/ingredients`);
-        }
-      } else if (selectedLocationId) {
-        transactionPaths = [`users/${user.uid}/locations/${selectedLocationId}/transactions`];
-        ingredientPaths = [`users/${user.uid}/locations/${selectedLocationId}/ingredients`];
-      } else {
-        setIsLoading(false);
-        return
-      }
-
-      if (transactionPaths.length === 0) {
-        setIsLoading(false);
-        setAggregatedData({
-          totalRevenue: 0,
-          totalSales: 0,
-          lowStockItemsCount: 0,
-          recentTransactions: [],
-          lowStockItems: [],
-        });
-        return;
-      }
-
-      // Fetch transactions
-      const transactionPromises = transactionPaths.map(path => getDocs(query(collection(firestore, path))));
-      const transactionSnapshots = await Promise.all(transactionPromises);
-      const allTransactions = transactionSnapshots.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-      allTransactions.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
-
-
-      // Fetch ingredients
-      const ingredientPromises = ingredientPaths.map(path => getDocs(query(collection(firestore, path))));
-      const ingredientSnapshots = await Promise.all(ingredientPromises);
-      const allIngredients = ingredientSnapshots.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RawMaterial)));
+      const transactionPromises = outletsToQuery.map(outlet => 
+        getDocs(query(collection(firestore, `outlets/${outlet.id}/pos/transactions`), orderBy('createdAt', 'desc'), limit(10)))
+      );
+      const ingredientPromises = outletsToQuery.map(outlet => 
+        getDocs(collection(firestore, `outlets/${outlet.id}/inventory/raw_materials`))
+      );
       
-      const totalRevenue = allTransactions.reduce((acc, sale) => acc + sale.totalCost, 0);
+      const [transactionSnapshots, ingredientSnapshots] = await Promise.all([
+          Promise.all(transactionPromises),
+          Promise.all(ingredientPromises)
+      ]);
+
+      const allTransactions: (Transaction & { outletName: string })[] = [];
+      transactionSnapshots.forEach((snap, index) => {
+          const outletName = outletsToQuery[index].name;
+          snap.docs.forEach(doc => {
+              allTransactions.push({ id: doc.id, ...(doc.data() as Transaction), outletName });
+          })
+      });
+      allTransactions.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
+      const allIngredients: (RawMaterial & { outletName: string })[] = [];
+      ingredientSnapshots.forEach((snap, index) => {
+          const outletName = outletsToQuery[index].name;
+           snap.docs.forEach(doc => {
+              allIngredients.push({ id: doc.id, ...(doc.data() as RawMaterial), outletName });
+          })
+      });
+      
+      const totalRevenue = allTransactions.reduce((acc, sale) => acc + sale.total, 0);
       const totalSales = allTransactions.length;
-      const lowStockItems = allIngredients.filter(item => item.stockLevel <= item.lowStockThreshold);
+      const lowStockItems = allIngredients.filter(item => item.stock <= item.minimumStock);
 
       setAggregatedData({
         totalRevenue,
@@ -111,7 +123,7 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [selectedLocationId, firestore, user, locations]);
+  }, [firestore, user, outletsToQuery, outlets]);
 
 
   return (
@@ -124,8 +136,8 @@ export default function Dashboard() {
           Dashboard
         </h1>
         <div className="flex items-center gap-2">
-          <LocationSwitcher />
-          <Button asChild size="sm" disabled={selectedLocationId === 'all'}>
+          <OutletSwitcher />
+          <Button asChild size="sm" disabled={!selectedOutletId || selectedOutletId === 'all'}>
             <Link href="/dashboard/pos">
               <Store className="mr-2 h-4 w-4" />
               Buka POS
@@ -148,7 +160,7 @@ export default function Dashboard() {
                       ${aggregatedData.totalRevenue.toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Based on selected location(s)
+                      Based on selected outlet(s)
                     </p>
                   </>}
                 </CardContent>
@@ -199,7 +211,7 @@ export default function Dashboard() {
                 <div className="grid gap-2">
                   <CardTitle>Transactions</CardTitle>
                   <CardDescription>
-                    Recent transactions from your store.
+                    Recent transactions from your store(s).
                   </CardDescription>
                 </div>
                 <Button asChild size="sm" className="ml-auto gap-1">
@@ -215,7 +227,7 @@ export default function Dashboard() {
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       <TableHead className="hidden xl:table-column">
-                        Items
+                        Outlet
                       </TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                     </TableRow>
@@ -233,15 +245,15 @@ export default function Dashboard() {
                           <TableCell>
                             <div className="font-medium">Anonymous</div>
                             <div className="hidden text-sm text-muted-foreground md:inline">
-                              {sale.timestamp?.toDate().toLocaleDateString()}
+                              {sale.createdAt?.toDate().toLocaleDateString()}
                             </div>
                           </TableCell>
-                          <TableCell className="hidden xl:table-column">
-                            {sale.menuItemIds.length} items
+                          <TableCell className="hidden xl:table-cell">
+                            {sale.outletName}
                           </TableCell>
   
                           <TableCell className="text-right">
-                            ${sale.totalCost.toFixed(2)}
+                            ${sale.total.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))
@@ -255,13 +267,13 @@ export default function Dashboard() {
             <CardHeader>
               <CardTitle>Low Stock</CardTitle>
               <CardDescription>
-                These items are running low and may need reordering soon.
+                These items are running low across your outlets.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-8">
               {isLoading ? (
                  <Loader className="mx-auto h-6 w-6 animate-spin" />
-              ) : aggregatedData.lowStockItems.map((item) => (
+              ) : aggregatedData.lowStockItems.length > 0 ? aggregatedData.lowStockItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-4">
                   <Avatar className="hidden h-9 w-9 sm:flex">
                     <AvatarImage
@@ -275,14 +287,16 @@ export default function Dashboard() {
                       {item.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {item.stockLevel} {item.unitOfMeasurement} remaining
+                      {item.stock} {item.unit} at {item.outletName}
                     </p>
                   </div>
                   <Badge variant="destructive" className="ml-auto">
                     Low
                   </Badge>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-muted-foreground text-center">No low stock items.</p>
+              )}
             </CardContent>
           </Card>
         </main>

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { MenuItem } from '@/lib/data';
+import type { Product } from '@/lib/data';
 import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -30,45 +30,46 @@ import {
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { useLocation } from '@/components/LocationContext';
+import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 
-type OrderItem = MenuItem & { quantity: number };
+type OrderItem = Product & { quantity: number };
 
 export default function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
+  const { selectedOutletId } = useOutlet();
   const router = useRouter();
 
-  // Redirect if no location is selected
+  // Redirect if no outlet is selected
   useEffect(() => {
-    if (!selectedLocationId || selectedLocationId === 'all') {
+    if (!selectedOutletId || selectedOutletId === 'all') {
       toast({
-        title: 'No Location Selected',
-        description: 'Please select a location from the dashboard to open POS.',
+        title: 'No Outlet Selected',
+        description: 'Please select an outlet from the dashboard to open POS.',
         variant: 'destructive',
       });
       router.push('/dashboard');
     }
-  }, [selectedLocationId, router, toast]);
+  }, [selectedOutletId, router, toast]);
 
   const menuItemsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !selectedLocationId || selectedLocationId === 'all') return null;
-    return collection(firestore, `users/${user.uid}/locations/${selectedLocationId}/menuItems`);
-  }, [firestore, user, selectedLocationId]);
+    if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
+    return collection(firestore, `outlets/${selectedOutletId}/inventory/products`);
+  }, [firestore, user, selectedOutletId]);
 
-  const { data: menuItems, isLoading: isLoadingMenu } = useCollection<MenuItem>(menuItemsQuery);
+  const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
 
   const transactionsCollectionRef = useMemoFirebase(() => {
-      if (!firestore || !user || !selectedLocationId || selectedLocationId === 'all') return null;
-      return collection(firestore, `users/${user.uid}/locations/${selectedLocationId}/transactions`);
-  }, [firestore, user, selectedLocationId]);
+      if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
+      return collection(firestore, `outlets/${selectedOutletId}/pos/transactions`);
+  }, [firestore, user, selectedOutletId]);
 
 
-  const handleAddItem = (item: MenuItem) => {
+  const handleAddItem = (item: Product) => {
     setOrderItems((prevItems) => {
       const existingItem = prevItems.find((i) => i.id === item.id);
       if (existingItem) {
@@ -103,7 +104,7 @@ export default function POSPage() {
       (acc, item) => acc + item.price * item.quantity,
       0
     );
-    const tax = subtotal * 0.08;
+    const tax = subtotal * 0.11; // 11% tax
     const total = subtotal + tax;
     return { subtotal, tax, total };
   }, [orderItems]);
@@ -118,13 +119,18 @@ export default function POSPage() {
   }
   
   const handleCheckout = (paymentMethod: 'Cash' | 'Card' | 'Bank') => {
-    if (!transactionsCollectionRef) return;
+    if (!transactionsCollectionRef || orderItems.length === 0) return;
 
     const newTransaction = {
-        timestamp: serverTimestamp(),
-        totalCost: total,
+        invoice: `INV-${Date.now()}`,
+        items: orderItems.map(item => ({
+            productId: item.id,
+            qty: item.quantity,
+            price: item.price
+        })),
+        total: total,
         paymentMethod,
-        menuItemIds: orderItems.map(item => item.id),
+        createdAt: serverTimestamp(),
     };
 
     addDocumentNonBlocking(transactionsCollectionRef, newTransaction);
@@ -137,7 +143,7 @@ export default function POSPage() {
   }
 
   const renderContent = () => {
-    if (!selectedLocationId || selectedLocationId === 'all') {
+    if (!selectedOutletId || selectedOutletId === 'all') {
        return (
         <div className="flex flex-1 items-center justify-center">
             <Loader className="h-8 w-8 animate-spin" />
@@ -158,19 +164,19 @@ export default function POSPage() {
        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {menuItems?.map((item) => (
+              {menuItems?.filter(item => item.active).map((item) => (
                 <Card
                   key={item.id}
                   className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200"
                   onClick={() => handleAddItem(item)}
                 >
                   <Image
-                    src={item.imageUrl}
+                    src={`https://picsum.photos/seed/${item.id}/400/300`}
                     alt={item.name}
                     width={400}
                     height={300}
                     className="aspect-video w-full object-cover"
-                     data-ai-hint={`${item.category.toLowerCase()} food`}
+                    data-ai-hint={`${item.category.toLowerCase()} food`}
                   />
                   <CardHeader className="p-4">
                     <CardTitle className="text-lg">{item.name}</CardTitle>
@@ -197,7 +203,7 @@ export default function POSPage() {
                   {orderItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-4">
                       <Image
-                        src={item.imageUrl}
+                        src={`https://picsum.photos/seed/${item.id}/64/64`}
                         alt={item.name}
                         width={64}
                         height={64}
@@ -241,7 +247,7 @@ export default function POSPage() {
                         <span>${subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                        <span>Taxes (8%)</span>
+                        <span>Taxes (11%)</span>
                         <span>${tax.toFixed(2)}</span>
                     </div>
                     <Separator />

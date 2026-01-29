@@ -30,41 +30,42 @@ import {
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import type { RawMaterial } from '@/lib/data';
-import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 
-function getStockStatus(stock: number, lowStockThreshold: number) {
+function getStockStatus(stock: number, minimumStock: number) {
   if (stock === 0) return 'outline';
-  if (stock <= lowStockThreshold) return 'destructive';
+  if (stock <= minimumStock) return 'destructive';
   return 'default';
 }
 
-function getStockStatusText(stock: number, lowStockThreshold: number) {
+function getStockStatusText(stock: number, minimumStock: number) {
   if (stock === 0) return 'Out of Stock';
-  if (stock <= lowStockThreshold) return 'Low Stock';
+  if (stock <= minimumStock) return 'Low Stock';
   return 'In Stock';
 }
 
 export default function RawMaterialsPage() {
-  const { firestore, user } = useFirebase();
-  const { selectedLocationId } = useLocation();
-  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
+  const { firestore } = useFirebase();
+  const { selectedOutletId } = useOutlet();
+  const isOutletSelected = selectedOutletId && selectedOutletId !== 'all';
 
   const rawMaterialsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || !isLocationSelected) return null;
-    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'ingredients');
-  }, [firestore, user, selectedLocationId, isLocationSelected]);
+    if (!firestore || !isOutletSelected) return null;
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory/raw_materials');
+  }, [firestore, selectedOutletId, isOutletSelected]);
+
   const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
 
   const renderContent = () => {
-    if (!isLocationSelected) {
+    if (!isOutletSelected) {
       return (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
           <div className="flex flex-col items-center gap-1 text-center">
             <h3 className="text-2xl font-bold tracking-tight">
-              Please select a location
+              Please select an outlet
             </h3>
             <p className="text-sm text-muted-foreground">
-              You need to select a location to see raw materials.
+              You need to select an outlet to see raw materials.
             </p>
           </div>
         </div>
@@ -100,11 +101,11 @@ export default function RawMaterialsPage() {
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>
-                        <Badge variant={getStockStatus(item.stockLevel, item.lowStockThreshold)}>
-                          {getStockStatusText(item.stockLevel, item.lowStockThreshold)}
+                        <Badge variant={getStockStatus(item.stock, item.minimumStock)}>
+                          {getStockStatusText(item.stock, item.minimumStock)}
                         </Badge>
                       </TableCell>
-                      <TableCell>{`${item.stockLevel} ${item.unitOfMeasurement}`}</TableCell>
+                      <TableCell>{`${item.stock} ${item.unit}`}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -151,12 +152,12 @@ export default function RawMaterialsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-            <LocationSwitcher />
-          <Button size="sm" variant="outline" disabled={!isLocationSelected}>
+            <OutletSwitcher />
+          <Button size="sm" variant="outline" disabled={!isOutletSelected}>
              <ShoppingCart className="h-4 w-4 mr-2" />
             Purchase Item
           </Button>
-          <Button size="sm" disabled={!isLocationSelected}>
+          <Button size="sm" disabled={!isOutletSelected}>
             <Plus className="h-4 w-4 mr-2" />
             Add Item
           </Button>
