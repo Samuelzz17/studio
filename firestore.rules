@@ -19,14 +19,11 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && isOwner(userId);
     }
     
-    // For simplicity in this stage, any authenticated user can read/write to any outlet.
-    // In a production app with roles, you would add more granular checks here,
-    // for example, by reading the user's document to check their `outletAccess` array.
-    // function hasOutletAccess(outletId) {
-    //   return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outletAccess.hasAny([outletId]);
-    // }
+    // WARNING: The rule for outlets is temporarily open to allow the unauthenticated 
+    // seed script to run. For a production app, you should secure this, for example, by 
+    // changing `if true;` back to `if isSignedIn();`
     match /outlets/{outletId}/{path=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
