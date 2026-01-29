@@ -1,8 +1,7 @@
-
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-// This script assumes you have a serviceAccountKey.json file in the same directory.
-// You can download this from your Firebase project settings.
+// IMPORTANT: Create a 'serviceAccountKey.json' in the '/scripts' directory.
+// This file is git-ignored for security. Get it from your Firebase project settings.
 import serviceAccount from "./serviceAccountKey.json" assert { type: "json" };
 
 initializeApp({
@@ -14,7 +13,24 @@ const db = getFirestore();
 async function seed() {
   console.log("🌱 Start seeding...");
 
-  // --- 1. Seed Outlets ---
+  // --- 1. SEED A TEST USER ---
+  // ⛔️ IMPORTANT: Replace with a real User ID from your Firebase Authentication console.
+  const testUserUid = 'REPLACE_WITH_YOUR_FIREBASE_USER_ID'; 
+  if (testUserUid === 'REPLACE_WITH_YOUR_FIREBASE_USER_ID') {
+    console.warn('⚠️ Skipping user seed. Please edit `scripts/seed-firestore.ts` and replace the placeholder UID.');
+  } else {
+    const userRef = db.collection('users').doc(testUserUid);
+    await userRef.set({
+      name: 'Admin User',
+      role: 'owner',
+      outletAccess: ['sr_gadjah_mada', 'sr_jalur_11'],
+      createdAt: new Date(),
+    });
+    console.log(`👤 Seeded user: ${testUserUid}`);
+  }
+
+
+  // --- 2. SEED OUTLETS ---
   const outlets = [
     {
       id: "sr_gadjah_mada",
@@ -38,6 +54,7 @@ async function seed() {
       createdAt: new Date(),
     });
 
+    // create empty subcollections (Firestore style)
     const subCollections = [
       "inventory_products",
       "inventory_raw_materials",
@@ -57,27 +74,6 @@ async function seed() {
 
     console.log(`✅ Seeded outlet: ${outlet.id}`);
   }
-  
-  // --- 2. Seed a Test User Document ---
-  // IMPORTANT: 
-  // 1. Go to your Firebase project's "Authentication" page.
-  // 2. Create a user (e.g., admin@sr.com with a password).
-  // 3. Copy the UID for that user.
-  // 4. Paste the UID below to replace "REPLACE_WITH_YOUR_TEST_USER_UID".
-  const testUserUid = "REPLACE_WITH_YOUR_TEST_USER_UID";
-
-  if (testUserUid && testUserUid !== "REPLACE_WITH_YOUR_TEST_USER_UID") {
-    await db.collection("users").doc(testUserUid).set({
-      name: "Admin User",
-      role: "owner",
-      outletAccess: ["sr_gadjah_mada", "sr_jalur_11"],
-      createdAt: new Date(),
-    });
-    console.log(`✅ Seeded user document for UID: ${testUserUid}`);
-  } else {
-    console.warn("⚠️  Skipping user document seeding. Please update 'testUserUid' in scripts/seed-firestore.ts");
-  }
-
 
   console.log("🎉 SEEDING DONE");
 }
