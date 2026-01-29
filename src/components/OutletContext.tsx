@@ -73,6 +73,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
       try {
         const outletsRef = collection(firestore, "outlets");
+        // Use the 'in' query to fetch all relevant outlets in a single, efficient request.
         const q = query(outletsRef, where(documentId(), "in", validOutletIds));
         const querySnapshot = await getDocs(q);
 
@@ -113,7 +114,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       // 2. Create placeholder documents in subcollections
       const subCollections = [
         "inventory_products", "inventory_raw_materials", "inventory_assets",
-        "sales", "purchases_raw", "expenses", "purchases_assets",
+        "sales",
       ];
       for (const col of subCollections) {
           const initDocRef = doc(collection(newOutletRef, col), "_init");
