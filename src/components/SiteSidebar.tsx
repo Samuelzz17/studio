@@ -1,7 +1,8 @@
+
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Coffee,
   LayoutDashboard,
@@ -17,6 +18,8 @@ import {
   Armchair,
   BarChart2,
   PieChart,
+  LogOut,
+  Settings,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -37,6 +40,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from './ui/separator';
 import React from 'react';
+import { useAuth } from '@/firebase';
 
 const navItems = [
   { 
@@ -70,6 +74,11 @@ const navItems = [
       { href: '/dashboard/reports/inventory', label: 'Inventory', icon: Boxes },
       { href: '/dashboard/reports/finance', label: 'Finance', icon: PieChart },
     ]
+  },
+  {
+    href: '/dashboard/settings/outlets',
+    label: 'Settings',
+    icon: Settings,
   }
 ];
 
@@ -114,6 +123,13 @@ const NavCollapsible = ({ item, pathname }: { item: any, pathname: string }) => 
 
 export function SiteSidebar() {
   const pathname = usePathname();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -134,7 +150,9 @@ export function SiteSidebar() {
         <SidebarMenu>
           {navItems.map((item) =>
             item.subItems ? (
-              <NavCollapsible key={item.label} item={item} pathname={pathname} />
+              <SidebarMenuItem key={item.label}>
+                <NavCollapsible item={item} pathname={pathname} />
+              </SidebarMenuItem>
             ) : (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
@@ -154,8 +172,8 @@ export function SiteSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <Separator className="my-2" />
-      <SidebarFooter>
-        <div className="flex items-center gap-3">
+      <SidebarFooter className="p-2">
+        <div className="flex items-center gap-3 p-2 rounded-md">
           <Avatar className="h-9 w-9">
             <AvatarImage src="https://picsum.photos/seed/user/40/40" alt="@shadcn" />
             <AvatarFallback>AD</AvatarFallback>
@@ -167,6 +185,18 @@ export function SiteSidebar() {
             </span>
           </div>
         </div>
+         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleLogout}
+              className="justify-start text-destructive hover:text-destructive"
+              tooltip={{ children: 'Log Out', side: 'right' }}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );
