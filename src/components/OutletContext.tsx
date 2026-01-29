@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -58,9 +59,6 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    console.log("outletAccess:", userData.outletAccess)
-    console.log("type:", typeof userData.outletAccess)
-
     const fetchOutlets = async () => {
       setIsLoading(true);
       
