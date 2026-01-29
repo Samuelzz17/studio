@@ -58,14 +58,14 @@ export default function POSPage() {
 
   const menuItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-    return collection(firestore, `outlets/${selectedOutletId}/inventory/products`);
+    return collection(firestore, `outlets/${selectedOutletId}/products`);
   }, [firestore, user, selectedOutletId]);
 
   const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
 
   const transactionsCollectionRef = useMemoFirebase(() => {
       if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-      return collection(firestore, `outlets/${selectedOutletId}/pos/transactions`);
+      return collection(firestore, `outlets/${selectedOutletId}/transactions`);
   }, [firestore, user, selectedOutletId]);
 
 

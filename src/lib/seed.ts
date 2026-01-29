@@ -40,8 +40,8 @@ export async function seedInitialData(db: Firestore, userId: string) {
     const outletId = outletDef.id;
 
     // Create outlet info document
-    const outletInfoRef = doc(db, `outlets/${outletId}/info/details`);
-    batch.set(outletInfoRef, {
+    const outletDocRef = doc(db, `outlets/${outletId}`);
+    batch.set(outletDocRef, {
         name: outletDef.name,
         code: outletDef.code,
         active: true,
@@ -50,19 +50,19 @@ export async function seedInitialData(db: Firestore, userId: string) {
 
     // Add Products
     defaultProducts.forEach((product) => {
-      const itemRef = doc(collection(db, `outlets/${outletId}/inventory/products`));
+      const itemRef = doc(collection(db, `outlets/${outletId}/products`));
       batch.set(itemRef, { ...product, createdAt: now });
     });
 
     // Add Raw Materials
     defaultRawMaterials.forEach((material) => {
-      const materialRef = doc(collection(db, `outlets/${outletId}/inventory/raw_materials`));
+      const materialRef = doc(collection(db, `outlets/${outletId}/raw_materials`));
       batch.set(materialRef, { ...material, createdAt: now });
     });
 
     // Add Assets
     defaultAssets.forEach((asset) => {
-      const assetRef = doc(collection(db, `outlets/${outletId}/inventory/asset_investments`));
+      const assetRef = doc(collection(db, `outlets/${outletId}/asset_investments`));
       batch.set(assetRef, { ...asset, purchaseDate: now, createdAt: now });
     });
   }

@@ -39,7 +39,7 @@ export default function AssetsPage() {
 
   const assetsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'inventory/asset_investments');
+    return collection(firestore, 'outlets', selectedOutletId!, 'asset_investments');
   }, [firestore, selectedOutletId, isOutletSelected]);
   
   const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsQuery);

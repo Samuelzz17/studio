@@ -104,35 +104,35 @@
         }
       },
       {
-        "path": "/outlets/{outletId}/info/details",
+        "path": "/outlets/{outletId}",
         "definition": {
           "schema": { "$ref": "#/entities/OutletInfo" },
-          "description": "Singleton document containing core info for an outlet."
+          "description": "Document containing core info for an outlet."
         }
       },
       {
-        "path": "/outlets/{outletId}/inventory/products/{productId}",
+        "path": "/outlets/{outletId}/products/{productId}",
         "definition": {
           "schema": { "$ref": "#/entities/Product" },
           "description": "Sellable products for a specific outlet."
         }
       },
       {
-        "path": "/outlets/{outletId}/inventory/raw_materials/{materialId}",
+        "path": "/outlets/{outletId}/raw_materials/{materialId}",
         "definition": {
           "schema": { "$ref": "#/entities/RawMaterial" },
           "description": "Raw materials for a specific outlet."
         }
       },
       {
-        "path": "/outlets/{outletId}/inventory/asset_investments/{assetId}",
+        "path": "/outlets/{outletId}/asset_investments/{assetId}",
         "definition": {
           "schema": { "$ref": "#/entities/AssetInvestment" },
           "description": "Asset investments for a specific outlet."
         }
       },
       {
-        "path": "/outlets/{outletId}/pos/transactions/{transactionId}",
+        "path": "/outlets/{outletId}/transactions/{transactionId}",
         "definition": {
           "schema": { "$ref": "#/entities/Transaction" },
           "description": "POS transactions for a specific outlet."

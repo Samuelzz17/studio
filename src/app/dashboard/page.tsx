@@ -79,10 +79,10 @@ export default function Dashboard() {
       setIsLoading(true);
 
       const transactionPromises = outletsToQuery.map(outlet => 
-        getDocs(query(collection(firestore, `outlets/${outlet.id}/pos/transactions`), orderBy('createdAt', 'desc'), limit(10)))
+        getDocs(query(collection(firestore, `outlets/${outlet.id}/transactions`), orderBy('createdAt', 'desc'), limit(10)))
       );
       const ingredientPromises = outletsToQuery.map(outlet => 
-        getDocs(collection(firestore, `outlets/${outlet.id}/inventory/raw_materials`))
+        getDocs(collection(firestore, `outlets/${outlet.id}/raw_materials`))
       );
       
       const [transactionSnapshots, ingredientSnapshots] = await Promise.all([

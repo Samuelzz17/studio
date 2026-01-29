@@ -39,7 +39,7 @@ export default function ProductsPage() {
 
   const productsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'inventory/products');
+    return collection(firestore, 'outlets', selectedOutletId!, 'products');
   }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);

@@ -33,12 +33,12 @@ export default function FinanceReportPage() {
 
   const transactionsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/pos/transactions`));
+    return query(collection(firestore, `outlets/${selectedOutletId}/transactions`));
   }, [firestore, selectedOutletId, isOutletSelected]);
   
   const productsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/inventory/products`));
+    return query(collection(firestore, `outlets/${selectedOutletId}/products`));
   }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: sales } = useCollection<Transaction>(transactionsQuery);

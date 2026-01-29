@@ -50,7 +50,7 @@ export default function SalesPage() {
   const transactionsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
     return query(
-        collection(firestore, `outlets/${selectedOutletId}/pos/transactions`),
+        collection(firestore, `outlets/${selectedOutletId}/transactions`),
         orderBy('createdAt', 'desc')
     );
   }, [firestore, selectedOutletId, isOutletSelected]);
