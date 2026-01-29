@@ -26,6 +26,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  useSidebar,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
   Collapsible,
@@ -34,7 +36,6 @@ import {
 } from "@/components/ui/collapsible"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from './ui/separator';
-import { Button } from './ui/button';
 import React from 'react';
 
 const navItems = [
@@ -80,15 +81,15 @@ const NavCollapsible = ({ item, pathname }: { item: any, pathname: string }) => 
     return (
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
             <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between h-auto p-2">
-                    <div className="flex items-center gap-2 text-sm">
+                <SidebarMenuButton className="w-full justify-between" tooltip={{ children: item.label, side: 'right' }}>
+                     <div className="flex items-center gap-2">
                         <item.icon className="h-4 w-4" />
                         <span>{item.label}</span>
                     </div>
-                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-                </Button>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=collapsed]:hidden ${isOpen ? 'rotate-180' : ''}`} />
+                </SidebarMenuButton>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pl-4 pt-1">
+            <CollapsibleContent className="pl-4 pt-1 group-data-[state=collapsed]:hidden">
                 <SidebarMenu>
                     {item.subItems.map((subItem: any) => (
                         <SidebarMenuItem key={subItem.href}>
@@ -115,13 +116,18 @@ export function SiteSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-3">
-          <div className="bg-primary text-primary-foreground p-2 rounded-lg">
-            <Coffee className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-headline">SR</h1>
+        <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary text-primary-foreground p-2 rounded-lg">
+                <Coffee className="h-6 w-6" />
+              </div>
+              <div className="group-data-[state=collapsed]:hidden">
+                <h1 className="text-2xl font-headline">SR</h1>
+              </div>
+            </div>
+            <SidebarTrigger className="hidden md:flex" />
         </div>
       </SidebarHeader>
       <SidebarContent className="p-2">
@@ -154,7 +160,7 @@ export function SiteSidebar() {
             <AvatarImage src="https://picsum.photos/seed/user/40/40" alt="@shadcn" />
             <AvatarFallback>AD</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
+          <div className="flex flex-col group-data-[state=collapsed]:hidden">
             <span className="text-sm font-medium">Admin User</span>
             <span className="text-xs text-muted-foreground">
               admin@sr.com
