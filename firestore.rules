@@ -18,10 +18,8 @@ service cloud.firestore {
     // =========================
     match /outlets/{outletId} {
 
-      // GET: Allow reading a single outlet document if the user has specific access.
-      // This is used by the client's `where(documentId(), 'in', ...)` query.
-      allow get: if isAuthenticated()
-        && hasOutletAccess(outletId);
+      // GET: Allow reading a single outlet document for any authenticated user.
+      allow get: if isAuthenticated();
       
       // LIST: Allow listing outlets for any authenticated user.
       // This permission is necessary for the `where-in` query to function correctly.
