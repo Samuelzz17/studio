@@ -1,6 +1,6 @@
-
 'use client';
 
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,10 +27,33 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import {
+  addDocumentNonBlocking,
+  updateDocumentNonBlocking,
+} from '@/firebase/non-blocking-updates';
 import type { RawMaterial } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
+import { RawMaterialForm, type RawMaterialFormData } from '@/components/forms/RawMaterialForm';
+import { UpdateStockForm, type UpdateStockFormData } from '@/components/forms/UpdateStockForm';
+import { useToast } from '@/hooks/use-toast';
+
 
 function getStockStatus(stock: number, minimumStock: number) {
   if (stock === 0) return 'outline';
@@ -47,14 +70,61 @@ function getStockStatusText(stock: number, minimumStock: number) {
 export default function RawMaterialsPage() {
   const { firestore } = useFirebase();
   const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const { toast } = useToast();
   const isOutletSelected = !!activeOutlet;
 
-  const rawMaterialsQuery = useMemoFirebase(() => {
+  // State for forms/dialogs
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [isPurchaseDialogOpen, setIsPurchaseDialogOpen] = useState(false);
+  const [selectedItemForPurchase, setSelectedItemForPurchase] = useState<RawMaterial | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+
+  const rawMaterialsCollectionRef = useMemoFirebase(() => {
     if (!firestore || !activeOutlet) return null;
     return collection(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials');
   }, [firestore, activeOutlet]);
 
-  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
+  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsCollectionRef);
+
+  const handleOpenPurchaseDialog = (item: RawMaterial) => {
+    setSelectedItemForPurchase(item);
+    setIsPurchaseDialogOpen(true);
+  }
+
+  const handleAddRawMaterial = (values: RawMaterialFormData) => {
+    if (!rawMaterialsCollectionRef) return;
+    setIsSubmitting(true);
+    
+    const newDoc = {
+        ...values,
+        createdAt: serverTimestamp(),
+    };
+    addDocumentNonBlocking(rawMaterialsCollectionRef, newDoc);
+    toast({
+        title: 'Success!',
+        description: `${values.name} has been added to your raw materials.`,
+    });
+    setIsAddSheetOpen(false);
+    setIsSubmitting(false);
+  };
+
+  const handlePurchaseItem = (values: UpdateStockFormData) => {
+    if (!firestore || !activeOutlet || !selectedItemForPurchase) return;
+    setIsSubmitting(true);
+
+    const itemRef = doc(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials', selectedItemForPurchase.id);
+    const newStock = selectedItemForPurchase.stock + values.quantity;
+    updateDocumentNonBlocking(itemRef, { stock: newStock });
+    toast({
+        title: 'Stock Updated!',
+        description: `Stock for ${selectedItemForPurchase.name} is now ${newStock}.`,
+    });
+    setIsPurchaseDialogOpen(false);
+    setSelectedItemForPurchase(null);
+    setIsSubmitting(false);
+  };
+
 
   const renderContent = () => {
     if (isLoadingOutlets) {
@@ -124,7 +194,9 @@ export default function RawMaterialsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Purchase</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenPurchaseDialog(item)}>
+                              Purchase
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">
                               Delete
                             </DropdownMenuItem>
@@ -160,19 +232,58 @@ export default function RawMaterialsPage() {
         </div>
         <div className="flex items-center gap-2">
             <OutletSwitcher />
-          <Button size="sm" variant="outline" disabled={!isOutletSelected}>
+          <Button size="sm" variant="outline" disabled>
              <ShoppingCart className="h-4 w-4 mr-2" />
             Purchase Item
           </Button>
-          <Button size="sm" disabled={!isOutletSelected}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
+          <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+            <SheetTrigger asChild>
+              <Button size="sm" disabled={!isOutletSelected}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+                <SheetHeader>
+                    <SheetTitle>Add New Raw Material</SheetTitle>
+                    <SheetDescription>
+                        Fill in the details for the new inventory item.
+                    </SheetDescription>
+                </SheetHeader>
+                <div className="py-4">
+                    <RawMaterialForm onSubmit={handleAddRawMaterial} isSubmitting={isSubmitting} />
+                </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         {renderContent()}
       </main>
+
+      {/* Purchase Item Dialog */}
+      <Dialog open={isPurchaseDialogOpen} onOpenChange={(isOpen) => {
+          setIsPurchaseDialogOpen(isOpen);
+          if (!isOpen) setSelectedItemForPurchase(null);
+      }}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Purchase Raw Material</DialogTitle>
+                <DialogDescription>
+                    Update the stock for an existing item.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                {selectedItemForPurchase && (
+                    <UpdateStockForm 
+                        item={selectedItemForPurchase}
+                        onSubmit={handlePurchaseItem}
+                        isSubmitting={isSubmitting}
+                    />
+                )}
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
