@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ import { collection } from 'firebase/firestore';
 import type { MenuItem, RawMaterial, Asset } from '@/lib/data';
 import { useMemo } from 'react';
 import withAuth from '@/components/withAuth';
+import { useLocation, LocationSwitcher } from '@/components/LocationContext';
 
 function getStockStatus(stock: number, lowStockThreshold: number) {
   if (stock === 0) return 'outline';
@@ -47,23 +49,25 @@ function getStockStatusText(stock: number, lowStockThreshold: number) {
 
 function InventoryPage() {
   const { firestore, user } = useFirebase();
+  const { selectedLocationId } = useLocation();
+  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
 
   const productsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'menuItems');
-  }, [firestore, user]);
+    if (!firestore || !user || !isLocationSelected) return null;
+    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'menuItems');
+  }, [firestore, user, selectedLocationId, isLocationSelected]);
   const { data: products, isLoading: isLoadingProducts } = useCollection<MenuItem>(productsQuery);
 
   const rawMaterialsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'ingredients');
-  }, [firestore, user]);
+    if (!firestore || !user || !isLocationSelected) return null;
+    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'ingredients');
+  }, [firestore, user, selectedLocationId, isLocationSelected]);
   const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
 
   const assetsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'assets');
-  }, [firestore, user]);
+    if (!firestore || !user || !isLocationSelected) return null;
+    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'assets');
+  }, [firestore, user, selectedLocationId, isLocationSelected]);
   const { data: assets, isLoading: isLoadingAssets } = useCollection<Asset>(assetsQuery);
 
   const allItems = useMemo(() => {
@@ -75,92 +79,23 @@ function InventoryPage() {
   }, [products, rawMaterials, assets]);
 
   const isLoading = isLoadingProducts || isLoadingRawMaterials || isLoadingAssets;
-
-  const renderTable = (
-    data: any[] | null,
-    columns: { key: string; label: string; render?: (item: any) => React.ReactNode }[],
-    emptyMessage: string
-  ) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {columns.map((col) => (
-            <TableHead key={col.key}>{col.label}</TableHead>
-          ))}
-          <TableHead>
-            <span className="sr-only">Actions</span>
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isLoading ? (
-          <TableRow>
-            <TableCell colSpan={columns.length + 1} className="text-center">
-              <Loader className="h-6 w-6 animate-spin mx-auto" />
-            </TableCell>
-          </TableRow>
-        ) : data && data.length > 0 ? (
-          data.map((item) => (
-            <TableRow key={item.id}>
-              {columns.map((col) => (
-                <TableCell key={col.key}>
-                  {col.render ? col.render(item) : item[col.key]}
-                </TableCell>
-              ))}
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">Toggle menu</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem>Purchase</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={columns.length + 1} className="text-center">
-              {emptyMessage}
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
-
-  return (
-    <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <div className="md:hidden">
-          <SidebarTrigger />
+  
+  const renderContent = () => {
+    if (!isLocationSelected) {
+      return (
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
+          <div className="flex flex-col items-center gap-1 text-center">
+            <h3 className="text-2xl font-bold tracking-tight">
+              Please select a location
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              You need to select a location from the dropdown above to see inventory.
+            </p>
+          </div>
         </div>
-        <div className="flex-1">
-          <h1 className="font-headline text-xl font-semibold md:text-2xl">
-            Inventory
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline">
-             <ShoppingCart className="h-4 w-4 mr-2" />
-            Purchase Item
-          </Button>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
-        </div>
-      </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+      );
+    }
+    return (
         <Tabs defaultValue="all">
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -255,6 +190,96 @@ function InventoryPage() {
             </Card>
           </TabsContent>
         </Tabs>
+    );
+  };
+
+  const renderTable = (
+    data: any[] | null,
+    columns: { key: string; label: string; render?: (item: any) => React.ReactNode }[],
+    emptyMessage: string
+  ) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {columns.map((col) => (
+            <TableHead key={col.key}>{col.label}</TableHead>
+          ))}
+          <TableHead>
+            <span className="sr-only">Actions</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {isLoading ? (
+          <TableRow>
+            <TableCell colSpan={columns.length + 1} className="text-center">
+              <Loader className="h-6 w-6 animate-spin mx-auto" />
+            </TableCell>
+          </TableRow>
+        ) : data && data.length > 0 ? (
+          data.map((item) => (
+            <TableRow key={item.id}>
+              {columns.map((col) => (
+                <TableCell key={col.key}>
+                  {col.render ? col.render(item) : item[col.key]}
+                </TableCell>
+              ))}
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button aria-haspopup="true" size="icon" variant="ghost">
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">Toggle menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem>Edit</DropdownMenuItem>
+                    <DropdownMenuItem>Purchase</DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))
+        ) : (
+          <TableRow>
+            <TableCell colSpan={columns.length + 1} className="text-center">
+              {emptyMessage}
+            </TableCell>
+          </TableRow>
+        )}
+      </TableBody>
+    </Table>
+  );
+
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+        <div className="md:hidden">
+          <SidebarTrigger />
+        </div>
+        <div className="flex-1">
+          <h1 className="font-headline text-xl font-semibold md:text-2xl">
+            Inventory
+          </h1>
+        </div>
+        <div className="flex items-center gap-2">
+            <LocationSwitcher />
+          <Button size="sm" variant="outline" disabled={!isLocationSelected}>
+             <ShoppingCart className="h-4 w-4 mr-2" />
+            Purchase Item
+          </Button>
+          <Button size="sm" disabled={!isLocationSelected}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Button>
+        </div>
+      </header>
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+        {renderContent()}
       </main>
     </div>
   );

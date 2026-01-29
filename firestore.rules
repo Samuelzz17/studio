@@ -1,129 +1,24 @@
-/**
- * @file firestore.rules
- * @description Security rules for a Point of Sale (POS) and restaurant management application.
- *
- * ## Core Philosophy
- * This ruleset enforces a strict user-ownership model. All application data, including menus,
- * ingredients, assets, transactions, and reports, is private and scoped to the authenticated user
- * who created it. There is no concept of public data or cross-user data sharing.
- *
- * ## Data Structure
- * All data is hierarchically organized under the `/users/{userId}` path. This structure
- * makes authorization simple and performant, as ownership is determined directly from the
- * document's path without requiring additional database reads. For example, a user's
- * menu items are stored at `/users/{userId}/menuItems/{menuItemId}`.
- *
- * ## Key Security Decisions
- * - **Default Deny:** Access is denied by default. All permissions must be explicitly granted.
- * - **User Isolation:** A user can only read or write data within their own data tree (i.e., under their own `/users/{userId}` path).
- * - **No User Enumeration:** Listing the top-level `/users` collection is strictly forbidden to protect user privacy.
- * - **Prototyping Flexibility:** These rules enforce strict authorization (who can access what) but do not validate the specific shape or data types of documents being written. This allows for rapid iteration on the data model during development.
- */
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions for readable and reusable logic
-    // ----------------------------------------------------------------
-
-    /**
-     * Checks if the current request is from an authenticated user.
-     */
+    // Helper function to check if a user is signed in
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the authenticated user's UID matches the given userId.
-     * This is the primary function for enforcing user ownership.
-     * @param userId The user ID to check against the request's auth UID.
-     */
+    // Helper function to check if the user owns the data
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
-    /**
-     * Checks for ownership on an existing document.
-     * CRITICAL: Used for all update and delete operations to prevent modifying
-     * a document that doesn't exist or doesn't belong to the user.
-     * @param userId The user ID to check for ownership.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-
-    // User Profile Rules
-    // ----------------------------------------------------------------
-    /**
-     * @description Secures the user's root document. A user can create their own document,
-     *   and can read, update, or delete it thereafter. Listing all users is forbidden.
-     * @path /users/{userId}
-     * @allow (create) An authenticated user with UID 'user_abc' creating their own document at `/users/user_abc`.
-     * @deny (list) Any user attempting to list the `/users` collection.
-     * @deny (get) A user 'user_abc' trying to read `/users/user_xyz`.
-     * @principle Restricts access to a user's own data tree and prevents user enumeration.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // Explicitly deny listing users for privacy
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-
-    // Menu Item (Product) Rules
-    // ----------------------------------------------------------------
-    match /users/{userId}/menuItems/{menuItemId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-
-    // Ingredient (Raw Material) Rules
-    // ----------------------------------------------------------------
-    match /users/{userId}/ingredients/{ingredientId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-    // Asset Rules
-    // ----------------------------------------------------------------
-    match /users/{userId}/assets/{assetId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-
-    // Transaction Rules
-    // ----------------------------------------------------------------
-    match /users/{userId}/transactions/{transactionId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
-    }
-
-
-    // Daily Sales Report Rules
-    // ----------------------------------------------------------------
-    match /users/{userId}/dailySalesReports/{dailySalesReportId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+    // Secure all user data under a top-level `users` collection.
+    // This rule uses a recursive wildcard (`{path=**}`) to match any document
+    // at any depth beneath a user's personal document (`/users/{userId}`).
+    // It grants read and write access only if the requesting user's UID
+    // matches the `userId` in the document path.
+    match /users/{userId}/{path=**} {
+      allow read, write: if isSignedIn() && isOwner(userId);
     }
   }
 }

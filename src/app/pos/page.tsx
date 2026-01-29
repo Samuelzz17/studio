@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +14,8 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { menuItems, type MenuItem } from '@/lib/data';
-import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign } from 'lucide-react';
+import type { MenuItem } from '@/lib/data';
+import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
@@ -24,11 +25,14 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
+  SheetTrigger,
 } from '@/components/ui/sheet';
 import withAuth from '@/components/withAuth';
-import { useFirebase, useMemoFirebase } from '@/firebase';
+import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, serverTimestamp } from 'firebase/firestore';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { useLocation } from '@/components/LocationContext';
+import { useRouter } from 'next/navigation';
 
 type OrderItem = MenuItem & { quantity: number };
 
@@ -37,11 +41,32 @@ function POSPage() {
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
+  const { selectedLocationId } = useLocation();
+  const router = useRouter();
+
+  // Redirect if no location is selected
+  useEffect(() => {
+    if (!selectedLocationId || selectedLocationId === 'all') {
+      toast({
+        title: 'No Location Selected',
+        description: 'Please select a location from the dashboard to open POS.',
+        variant: 'destructive',
+      });
+      router.push('/');
+    }
+  }, [selectedLocationId, router, toast]);
+
+  const menuItemsQuery = useMemoFirebase(() => {
+    if (!firestore || !user || !selectedLocationId || selectedLocationId === 'all') return null;
+    return collection(firestore, `users/${user.uid}/locations/${selectedLocationId}/menuItems`);
+  }, [firestore, user, selectedLocationId]);
+
+  const { data: menuItems, isLoading: isLoadingMenu } = useCollection<MenuItem>(menuItemsQuery);
 
   const transactionsCollectionRef = useMemoFirebase(() => {
-      if (!firestore || !user) return null;
-      return collection(firestore, 'users', user.uid, 'transactions');
-  }, [firestore, user]);
+      if (!firestore || !user || !selectedLocationId || selectedLocationId === 'all') return null;
+      return collection(firestore, `users/${user.uid}/locations/${selectedLocationId}/transactions`);
+  }, [firestore, user, selectedLocationId]);
 
 
   const handleAddItem = (item: MenuItem) => {
@@ -100,8 +125,7 @@ function POSPage() {
         timestamp: serverTimestamp(),
         totalCost: total,
         paymentMethod,
-        menuItemIds: orderItems.map(item => item.id), // Simplified for now
-        // In a real app, you might store more item details
+        menuItemIds: orderItems.map(item => item.id),
     };
 
     addDocumentNonBlocking(transactionsCollectionRef, newTransaction);
@@ -113,21 +137,29 @@ function POSPage() {
     setIsCheckoutSheetOpen(false);
   }
 
-  return (
-    <div className="flex min-h-screen w-full flex-col">
-       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <div className="md:hidden">
-          <SidebarTrigger />
+  const renderContent = () => {
+    if (!selectedLocationId || selectedLocationId === 'all') {
+       return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+            <p className="ml-4 text-muted-foreground">Redirecting...</p>
         </div>
-        <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
-          Point of Sale
-        </h1>
-      </header>
-      <main className="flex-1 p-4 md:p-6">
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+       );
+    }
+
+    if (isLoadingMenu) {
+        return (
+        <div className="flex flex-1 items-center justify-center">
+            <Loader className="h-8 w-8 animate-spin" />
+        </div>
+       );
+    }
+    
+    return (
+       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {menuItems.map((item) => (
+              {menuItems?.map((item) => (
                 <Card
                   key={item.id}
                   className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200"
@@ -224,7 +256,9 @@ function POSPage() {
                     <X className="mr-2 h-4 w-4"/> Clear
                   </Button>
                   <Sheet open={isCheckoutSheetOpen} onOpenChange={setIsCheckoutSheetOpen}>
-                    <Button onClick={() => setIsCheckoutSheetOpen(true)}>Checkout</Button>
+                    <SheetTrigger asChild>
+                      <Button>Checkout</Button>
+                    </SheetTrigger>
                     <SheetContent>
                       <SheetHeader>
                         <SheetTitle>Complete Payment</SheetTitle>
@@ -265,6 +299,22 @@ function POSPage() {
             )}
           </Card>
         </div>
+    );
+  };
+
+
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+        <div className="md:hidden">
+          <SidebarTrigger />
+        </div>
+        <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
+          Point of Sale
+        </h1>
+      </header>
+      <main className="flex-1 p-4 md:p-6">
+        {renderContent()}
       </main>
     </div>
   );

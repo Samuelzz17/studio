@@ -6,8 +6,6 @@ import { usePathname } from 'next/navigation';
 import {
   Coffee,
   LayoutDashboard,
-  ShoppingCart,
-  BookOpen,
   Boxes,
   DollarSign,
   LineChart,

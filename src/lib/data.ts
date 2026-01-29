@@ -1,3 +1,8 @@
+export type Location = {
+  id: string;
+  name: string;
+};
+
 export type MenuItem = {
   id: string;
   name: string;
@@ -103,4 +108,19 @@ export const menuItems: MenuItem[] = [
     category: 'Pastries',
     imageUrl: 'https://picsum.photos/seed/9/400/300',
   },
+];
+
+export const rawMaterials: Omit<RawMaterial, 'id'>[] = [
+    { name: "Coffee Beans", stockLevel: 10, unitOfMeasurement: "kg", lowStockThreshold: 2 },
+    { name: "Whole Milk", stockLevel: 20, unitOfMeasurement: "l", lowStockThreshold: 5 },
+    { name: "Flour", stockLevel: 50, unitOfMeasurement: "kg", lowStockThreshold: 10 },
+    { name: "Sugar", stockLevel: 30, unitOfMeasurement: "kg", lowStockThreshold: 5 },
+    { name: "Chocolate Chips", stockLevel: 5, unitOfMeasurement: "kg", lowStockThreshold: 1 },
+];
+
+export const assets: Omit<Asset, 'id'>[] = [
+    { name: "Espresso Machine", quantity: 1, unitOfMeasurement: "unit" },
+    { name: "Coffee Grinder", quantity: 2, unitOfMeasurement: "unit" },
+    { name: "Tables", quantity: 10, unitOfMeasurement: "unit" },
+    { name: "Chairs", quantity: 40, unitOfMeasurement: "unit" },
 ];

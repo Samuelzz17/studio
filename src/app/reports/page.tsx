@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Pie, PieChart, Cell, Line, LineChart, ResponsiveContainer } from 'recharts';
@@ -21,25 +22,31 @@ import { useMemo } from 'react';
 import { collection } from 'firebase/firestore';
 import type { Transaction } from '@/lib/data';
 import { menuItems } from '@/lib/data';
+import withAuth from '@/components/withAuth';
+import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
-export default function ReportsPage() {
+function ReportsPage() {
   const { firestore, user } = useFirebase();
+  const { selectedLocationId } = useLocation();
+  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
 
   const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'transactions');
-  }, [firestore, user]);
+    if (!firestore || !user || !isLocationSelected) return null;
+    return collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'transactions');
+  }, [firestore, user, selectedLocationId, isLocationSelected]);
 
   const { data: sales } = useCollection<Transaction>(transactionsQuery);
 
   const salesByCategory = useMemo(() => {
-    const categoryMap = { Coffee: 0, Pastries: 0, Food: 0 };
+    if (!sales) return [];
+    const categoryMap: { [key: string]: number } = { Coffee: 0, Pastries: 0, Food: 0 };
     sales?.forEach(sale => {
       sale.menuItemIds.forEach(itemId => {
         const menuItem = menuItems.find(mi => mi.id === itemId);
-        if (menuItem) {
+        if (menuItem && menuItem.category in categoryMap) {
             categoryMap[menuItem.category] += 1;
         } 
       });
@@ -48,6 +55,7 @@ export default function ReportsPage() {
   }, [sales]);
   
   const salesByHour = useMemo(() => {
+    if (!sales) return [];
     const hourMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 }));
      sales?.forEach(sale => {
         const hour = sale.timestamp.toDate().getHours();
@@ -57,6 +65,7 @@ export default function ReportsPage() {
   }, [sales]);
 
   const dailyRevenue = useMemo(() => {
+    if (!sales) return [];
     const revenueMap: { [key: string]: number } = {};
     sales?.forEach(sale => {
       const date = sale.timestamp.toDate().toLocaleDateString('en-CA');
@@ -65,7 +74,7 @@ export default function ReportsPage() {
       }
       revenueMap[date] += sale.totalCost;
     });
-    return Object.entries(revenueMap).map(([date, revenue]) => ({ date: new Date(date).toLocaleDateString('en-US', { weekday: 'short'}), revenue }));
+    return Object.entries(revenueMap).map(([date, revenue]) => ({ date: new Date(date).toLocaleDateString('en-US', { weekday: 'short'}), revenue })).slice(-7); // Last 7 days
   }, [sales]);
 
   const chartConfigCategory = {
@@ -82,21 +91,27 @@ export default function ReportsPage() {
   const chartConfigSalesByHour = {
     sales: { label: "Sales", color: "hsl(var(--chart-2))" },
   };
-
-  return (
-    <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <div className="md:hidden">
-          <SidebarTrigger />
+  
+  const renderContent = () => {
+    if (!isLocationSelected) {
+      return (
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm mt-8">
+          <div className="flex flex-col items-center gap-1 text-center">
+            <h3 className="text-2xl font-bold tracking-tight">
+              Please select a location
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              You need to select a location to see its reports.
+            </p>
+          </div>
         </div>
-        <h1 className="font-headline text-xl font-semibold md:text-2xl">
-          Financial Reports
-        </h1>
-      </header>
-      <main className="flex-1 p-4 md:p-6 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      );
+    }
+    return (
+       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Daily Revenue</CardTitle>
+            <CardTitle>Daily Revenue (Last 7 Days)</CardTitle>
             <CardDescription>Revenue generated over the last few days.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -109,7 +124,7 @@ export default function ReportsPage() {
                   tickMargin={10}
                   axisLine={false}
                 />
-                <YAxis />
+                <YAxis unit="$" />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
               </BarChart>
@@ -154,14 +169,33 @@ export default function ReportsPage() {
                 <LineChart data={salesByHour} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                     <XAxis dataKey="hour"/>
-                    <YAxis />
+                    <YAxis unit="$"/>
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" strokeWidth={2} />
                 </LineChart>
             </ChartContainer>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+        <div className="md:hidden">
+          <SidebarTrigger />
+        </div>
+        <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
+          Financial Reports
+        </h1>
+        <LocationSwitcher />
+      </header>
+      <main className="flex-1 p-4 md:p-6">
+        {renderContent()}
       </main>
     </div>
   );
 }
+
+export default withAuth(ReportsPage);

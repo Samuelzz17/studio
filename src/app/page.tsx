@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -8,12 +9,9 @@ import {
   Loader,
   Package,
   Users,
+  Store,
 } from 'lucide-react';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,45 +31,108 @@ import {
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, collectionGroup, getDocs, query } from 'firebase/firestore';
 import type { Transaction, RawMaterial } from '@/lib/data';
 import withAuth from '@/components/withAuth';
-
+import { useLocation, LocationSwitcher } from '@/components/LocationContext';
+import { useEffect, useState } from 'react';
 
 function Dashboard() {
   const { firestore, user } = useFirebase();
+  const { selectedLocationId, locations } = useLocation();
 
-  const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'transactions');
-  }, [firestore, user]);
+  const [aggregatedData, setAggregatedData] = useState({
+    totalRevenue: 0,
+    totalSales: 0,
+    lowStockItemsCount: 0,
+    recentTransactions: [] as Transaction[],
+    lowStockItems: [] as RawMaterial[],
+  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: sales, isLoading: isLoadingSales } =
-    useCollection<Transaction>(transactionsQuery);
+  useEffect(() => {
+    if (!firestore || !user) return;
 
-  const rawMaterialsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'users', user.uid, 'ingredients');
-  }, [firestore, user]);
+    const fetchData = async () => {
+      setIsLoading(true);
 
-  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
+      let transactionPaths: string[] = [];
+      let ingredientPaths: string[] = [];
 
-  const totalRevenue = sales?.reduce((acc, sale) => acc + sale.totalCost, 0) ?? 0;
-  const totalSales = sales?.length ?? 0;
+      if (selectedLocationId === 'all') {
+        if (locations) {
+          transactionPaths = locations.map(loc => `users/${user.uid}/locations/${loc.id}/transactions`);
+          ingredientPaths = locations.map(loc => `users/${user.uid}/locations/${loc.id}/ingredients`);
+        }
+      } else if (selectedLocationId) {
+        transactionPaths = [`users/${user.uid}/locations/${selectedLocationId}/transactions`];
+        ingredientPaths = [`users/${user.uid}/locations/${selectedLocationId}/ingredients`];
+      } else {
+        setIsLoading(false);
+        return
+      }
 
-  const lowStockItems = rawMaterials?.filter(
-    (item) => item.stockLevel <= item.lowStockThreshold
-  ) ?? [];
+      if (transactionPaths.length === 0) {
+        setIsLoading(false);
+        setAggregatedData({
+          totalRevenue: 0,
+          totalSales: 0,
+          lowStockItemsCount: 0,
+          recentTransactions: [],
+          lowStockItems: [],
+        });
+        return;
+      }
+
+      // Fetch transactions
+      const transactionPromises = transactionPaths.map(path => getDocs(query(collection(firestore, path))));
+      const transactionSnapshots = await Promise.all(transactionPromises);
+      const allTransactions = transactionSnapshots.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+      allTransactions.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+
+
+      // Fetch ingredients
+      const ingredientPromises = ingredientPaths.map(path => getDocs(query(collection(firestore, path))));
+      const ingredientSnapshots = await Promise.all(ingredientPromises);
+      const allIngredients = ingredientSnapshots.flatMap(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RawMaterial)));
+      
+      const totalRevenue = allTransactions.reduce((acc, sale) => acc + sale.totalCost, 0);
+      const totalSales = allTransactions.length;
+      const lowStockItems = allIngredients.filter(item => item.stockLevel <= item.lowStockThreshold);
+
+      setAggregatedData({
+        totalRevenue,
+        totalSales,
+        lowStockItemsCount: lowStockItems.length,
+        recentTransactions: allTransactions.slice(0, 5),
+        lowStockItems: lowStockItems,
+      });
+
+      setIsLoading(false);
+    };
+
+    fetchData();
+  }, [selectedLocationId, firestore, user, locations]);
+
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
         <div className="md:hidden">
           <SidebarTrigger />
         </div>
         <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
           Dashboard
         </h1>
+        <div className="flex items-center gap-2">
+          <LocationSwitcher />
+          <Button asChild size="sm" disabled={selectedLocationId === 'all'}>
+            <Link href="/pos">
+              <Store className="mr-2 h-4 w-4" />
+              Buka POS
+            </Link>
+          </Button>
+        </div>
       </header>
       <div className="flex flex-col sm:gap-4 sm:py-4 sm:px-6">
         <main className="grid flex-1 items-start gap-4 p-4 sm:p-0 md:gap-8 lg:grid-cols-3 xl:grid-cols-3">
@@ -83,12 +144,14 @@ function Dashboard() {
                   <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    ${totalRevenue.toFixed(2)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Based on all transactions
-                  </p>
+                  {isLoading ? <Loader className="h-6 w-6 animate-spin" /> : <>
+                    <div className="text-2xl font-bold">
+                      ${aggregatedData.totalRevenue.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Based on selected location(s)
+                    </p>
+                  </>}
                 </CardContent>
               </Card>
               <Card>
@@ -97,10 +160,12 @@ function Dashboard() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">+{totalSales}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Total transactions recorded
-                  </p>
+                 {isLoading ? <Loader className="h-6 w-6 animate-spin" /> : <>
+                    <div className="text-2xl font-bold">+{aggregatedData.totalSales}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Total transactions recorded
+                    </p>
+                  </>}
                 </CardContent>
               </Card>
               <Card>
@@ -109,10 +174,12 @@ function Dashboard() {
                   <Package className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{lowStockItems.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Items needing attention
-                  </p>
+                 {isLoading ? <Loader className="h-6 w-6 animate-spin" /> : <>
+                    <div className="text-2xl font-bold">{aggregatedData.lowStockItemsCount}</div>
+                    <p className="text-xs text-muted-foreground">
+                      Items needing attention
+                    </p>
+                  </>}
                 </CardContent>
               </Card>
               <Card>
@@ -155,14 +222,14 @@ function Dashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {isLoadingSales ? (
+                    {isLoading ? (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center">
                           <Loader className="mx-auto h-6 w-6 animate-spin" />
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sales?.slice(0, 5).map((sale) => (
+                      aggregatedData.recentTransactions.map((sale) => (
                         <TableRow key={sale.id}>
                           <TableCell>
                             <div className="font-medium">Anonymous</div>
@@ -171,7 +238,6 @@ function Dashboard() {
                             </div>
                           </TableCell>
                           <TableCell className="hidden xl:table-column">
-                            {/* This is simplified */}
                             {sale.menuItemIds.length} items
                           </TableCell>
   
@@ -194,9 +260,9 @@ function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-8">
-              {isLoadingRawMaterials ? (
+              {isLoading ? (
                  <Loader className="mx-auto h-6 w-6 animate-spin" />
-              ) : lowStockItems.map((item) => (
+              ) : aggregatedData.lowStockItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-4">
                   <Avatar className="hidden h-9 w-9 sm:flex">
                     <AvatarImage

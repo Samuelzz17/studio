@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Badge } from '@/components/ui/badge';
@@ -28,41 +29,53 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { MoreHorizontal, Loader } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, orderBy, query } from 'firebase/firestore';
 import type { Transaction } from '@/lib/data';
 import {
   Pagination,
   PaginationContent,
-  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import withAuth from '@/components/withAuth';
+import { useLocation, LocationSwitcher } from '@/components/LocationContext';
 
 
-export default function SalesPage() {  
+function SalesPage() {  
   const { firestore, user } = useFirebase();
+  const { selectedLocationId } = useLocation();
+  const isLocationSelected = selectedLocationId && selectedLocationId !== 'all';
 
   const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    // TODO: Add sorting and pagination queries
-    return collection(firestore, 'users', user.uid, 'transactions');
-  }, [firestore, user]);
+    if (!firestore || !user || !isLocationSelected) return null;
+    return query(
+        collection(firestore, 'users', user.uid, 'locations', selectedLocationId!, 'transactions'),
+        orderBy('timestamp', 'desc')
+    );
+  }, [firestore, user, selectedLocationId, isLocationSelected]);
 
   const { data: sales, isLoading: isLoadingSales } = useCollection<Transaction>(transactionsQuery);
 
-  return (
-    <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <div className="md:hidden">
-          <SidebarTrigger />
+  const renderContent = () => {
+    if (!isLocationSelected) {
+       return (
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm">
+          <div className="flex flex-col items-center gap-1 text-center">
+            <h3 className="text-2xl font-bold tracking-tight">
+              Please select a location
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              You need to select a location from the dropdown above to see its sales history.
+            </p>
+          </div>
         </div>
-        <h1 className="font-headline text-xl font-semibold md:text-2xl">
-          Sales History
-        </h1>
-      </header>
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+      );
+    }
+
+    return (
+       <>
         <Card>
           <CardHeader>
             <CardTitle>Transactions</CardTitle>
@@ -95,7 +108,7 @@ export default function SalesPage() {
                 ) : (
                 sales?.map((sale) => (
                   <TableRow key={sale.id}>
-                    <TableCell className="font-mono text-xs">{sale.id}</TableCell>
+                    <TableCell className="font-mono text-xs">{sale.id.substring(0, 7)}</TableCell>
                     <TableCell className="font-medium">Anonymous</TableCell>
                     <TableCell className="hidden md:table-cell">
                       {sale.timestamp?.toDate().toLocaleString()}
@@ -153,14 +166,30 @@ export default function SalesPage() {
               <PaginationLink href="#">3</PaginationLink>
             </PaginationItem>
             <PaginationItem>
-              <PaginationEllipsis />
-            </PaginationItem>
-            <PaginationItem>
               <PaginationNext href="#" />
             </PaginationItem>
           </PaginationContent>
         </Pagination>
+        </>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen w-full flex-col">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+        <div className="md:hidden">
+          <SidebarTrigger />
+        </div>
+        <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
+          Sales History
+        </h1>
+        <LocationSwitcher />
+      </header>
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+       {renderContent()}
       </main>
     </div>
   );
 }
+
+export default withAuth(SalesPage);
