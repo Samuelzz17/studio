@@ -2,7 +2,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import firestore functions
+import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -78,24 +78,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => { // Auth state determined
-        if (firebaseUser) {
-            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-            try {
-                const userDocSnap = await getDoc(userDocRef);
-                if (!userDocSnap.exists()) {
-                    await setDoc(userDocRef, {
-                        name: firebaseUser.displayName || firebaseUser.email || 'Anonymous User',
-                        role: 'owner', 
-                        outletAccess: ['sr_gadjah_mada', 'sr_jalur_11'],
-                        createdAt: serverTimestamp(),
-                    });
-                }
-            } catch (e) {
-                 console.error("User bootstrap failed:", e);
-            }
-        }
-        
+      (firebaseUser) => { // Auth state determined
+        // The user document is now expected to be created by a backend process (seed script or Cloud Function).
+        // The client no longer creates the user document.
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
