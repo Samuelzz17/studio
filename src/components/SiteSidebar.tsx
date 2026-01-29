@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -15,7 +14,7 @@ import {
   Building2,
   Package,
   Blend,
-  Chair,
+  Armchair,
   BarChart2,
   PieChart,
 } from 'lucide-react';
@@ -50,7 +49,7 @@ const navItems = [
     subItems: [
       { href: '/dashboard/inventory/products', label: 'Products', icon: Package },
       { href: '/dashboard/inventory/raw-materials', label: 'Raw Materials', icon: Blend },
-      { href: '/dashboard/inventory/assets', label: 'Assets', icon: Chair },
+      { href: '/dashboard/inventory/assets', label: 'Assets', icon: Armchair },
     ]
   },
   {
