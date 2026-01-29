@@ -48,7 +48,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
   const { data: userData, isLoading: isLoadingUserDoc } = useDoc<User>(userDocRef);
 
   const fetchOutlets = useCallback(async () => {
-    if (!firestore || !userData || !userData.outletAccess) {
+    if (!firestore || !userData) {
       if (!isLoadingUserDoc && !isUserLoading) {
         setOutlets([]);
         setIsLoadingOutlets(false);
@@ -58,7 +58,20 @@ export function OutletProvider({ children }: { children: ReactNode }) {
 
     setIsLoadingOutlets(true);
     try {
-      const outletPromises = userData.outletAccess.map(outletId =>
+      console.log("outletAccess:", userData.outletAccess);
+      console.log("type:", typeof userData.outletAccess);
+
+      const outletIds = Array.isArray(userData.outletAccess)
+        ? userData.outletAccess
+        : [];
+
+      if (outletIds.length === 0) {
+        setOutlets([]);
+        setIsLoadingOutlets(false);
+        return;
+      }
+
+      const outletPromises = outletIds.map(outletId =>
         getDoc(doc(firestore, `outlets/${outletId}`))
       );
       const outletSnapshots = await Promise.all(outletPromises);
@@ -95,7 +108,8 @@ export function OutletProvider({ children }: { children: ReactNode }) {
       // TODO: Seed data for the new outlet (products, raw_materials, etc.)
       
       // Update user's outletAccess
-      const updatedAccess = [...(userData.outletAccess || []), newOutletRef.id];
+      const currentAccess = Array.isArray(userData.outletAccess) ? userData.outletAccess : [];
+      const updatedAccess = [...currentAccess, newOutletRef.id];
       await addDocumentNonBlocking(userDocRef, { outletAccess: updatedAccess });
 
       // Refetch outlets to update the UI
