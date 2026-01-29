@@ -7,9 +7,10 @@ import {
   useState,
   type ReactNode,
   useCallback,
+  useEffect,
 } from 'react';
-import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, where, query, serverTimestamp, writeBatch, documentId } from 'firebase/firestore';
+import { useFirebase, useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, collection, where, query, serverTimestamp, writeBatch, documentId, getDoc } from 'firebase/firestore';
 import type { User, OutletInfo } from '@/lib/data';
 import {
   Select,
@@ -31,33 +32,58 @@ interface OutletContextType {
 const OutletContext = createContext<OutletContextType | undefined>(undefined);
 
 export function OutletProvider({ children }: { children: ReactNode }) {
-  const { firestore, auth } = useFirebase();
+  const { firestore } = useFirebase();
   const { user: authUser } = useUser();
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>('all');
+
+  const [outlets, setOutlets] = useState<(OutletInfo & { id: string })[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
     return doc(firestore, `users/${authUser.uid}`);
   }, [firestore, authUser]);
-  const { data: userData } = useDoc<User>(userDocRef);
 
-  const outletsQuery = useMemoFirebase(() => {
-    if (!firestore || !userData || !Array.isArray(userData.outletAccess) || userData.outletAccess.length === 0) {
-      return null;
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<User>(userDocRef);
+
+  useEffect(() => {
+    if (!firestore || isUserDataLoading) {
+      return;
+    }
+
+    if (!userData || !Array.isArray(userData.outletAccess) || userData.outletAccess.length === 0) {
+      setOutlets([]);
+      setIsLoading(false);
+      return;
     }
     
     console.log("outletAccess:", userData.outletAccess)
     console.log("type:", typeof userData.outletAccess)
 
-    // Securely query for outlets the user has access to.
-    // An 'in' query with an empty array is invalid, hence the length check.
-    return query(
-      collection(firestore, 'outlets'),
-      where(documentId(), 'in', userData.outletAccess)
-    );
-  }, [firestore, userData]);
+    const fetchOutlets = async () => {
+      setIsLoading(true);
+      const outletIds = userData.outletAccess;
 
-  const { data: outlets, isLoading: isLoadingOutlets } = useCollection<OutletInfo>(outletsQuery);
+      try {
+        const outletDocsPromises = outletIds.map(id => getDoc(doc(firestore, "outlets", id)));
+        const outletDocsSnaps = await Promise.all(outletDocsPromises);
+
+        const fetchedOutlets = outletDocsSnaps
+          .filter(snap => snap.exists())
+          .map(snap => ({ id: snap.id, ...snap.data() } as OutletInfo & { id: string }));
+
+        setOutlets(fetchedOutlets);
+      } catch (error) {
+        console.error("Error fetching outlets:", error);
+        setOutlets([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOutlets();
+  }, [firestore, userData, isUserDataLoading]);
+
 
   const addOutlet = useCallback(async (name: string, code: string) => {
     if (!firestore || !userDocRef) {
@@ -111,7 +137,7 @@ export function OutletProvider({ children }: { children: ReactNode }) {
     outlets,
     selectedOutletId,
     setSelectedOutletId,
-    isLoading: isLoadingOutlets,
+    isLoading: isLoading,
     addOutlet,
   };
 

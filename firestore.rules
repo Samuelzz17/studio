@@ -3,26 +3,60 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if a user is signed in
-    function isSignedIn() {
+
+    // =========================
+    // USERS
+    // =========================
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Note: Write access is intentionally omitted for now for stricter security.
+      // User documents should be managed by a trusted backend process or admin.
+    }
+
+    // =========================
+    // OUTLETS
+    // =========================
+    match /outlets/{outletId} {
+
+      // READ outlet document only if user has specific access
+      allow get: if isAuthenticated()
+        && hasOutletAccess(outletId);
+
+      // LIST outlets is not allowed by this rule to prevent querying all outlets.
+      // Client should fetch based on user's access list.
+      allow list: if false;
+
+      // WRITE to the outlet document only for users with 'owner' role
+      allow write: if isOwner();
+
+      // =========================
+      // SUBCOLLECTIONS
+      // =========================
+      match /{subCollection=**} {
+        allow read, write: if isAuthenticated()
+          && hasOutletAccess(outletId);
+      }
+    }
+
+    // =========================
+    // FUNCTIONS
+    // =========================
+    function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if the requesting user is the owner of the document
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+
+    // Checks if the user has the 'owner' role.
+    // This requires a read to the user's own document.
+    function isOwner() {
+      return isAuthenticated()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner";
     }
-    
-    // Users can read and write to their own user document
-    match /users/{userId} {
-      allow read, write: if isSignedIn() && isOwner(userId);
-    }
-    
-    // Access to outlets should be controlled, e.g., by checking user roles or specific outlet access lists.
-    // For now, we'll require a user to be signed in.
-    match /outlets/{outletId}/{path=**} {
-      allow read, write: if isSignedIn();
+
+    // Checks if an outletId exists in the user's 'outletAccess' array.
+    // This function can only be used in rules for 'get' requests, not 'list'.
+    function hasOutletAccess(outletId) {
+      return isAuthenticated()
+        && outletId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.outletAccess;
     }
   }
 }
