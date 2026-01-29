@@ -43,3 +43,6 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+scripts/studio-2575278413-19a95-firebase-adminsdk-fbsvc-423bd72b74.json
+scripts/serviceAccountKey.json
+scripts/seed-firestore.ts

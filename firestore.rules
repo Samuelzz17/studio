@@ -19,11 +19,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && isOwner(userId);
     }
     
-    // WARNING: The rule for outlets is temporarily open to allow the unauthenticated 
-    // seed script to run. For a production app, you should secure this, for example, by 
-    // changing `if true;` back to `if isSignedIn();`
+    // Access to outlets should be controlled, e.g., by checking user roles or specific outlet access lists.
+    // For now, we'll require a user to be signed in.
     match /outlets/{outletId}/{path=**} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
   }
 }
