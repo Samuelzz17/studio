@@ -9,7 +9,7 @@ import {
   useCallback,
 } from 'react';
 import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, where, query, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, collection, where, query, serverTimestamp, writeBatch, documentId } from 'firebase/firestore';
 import type { User, OutletInfo } from '@/lib/data';
 import {
   Select,
@@ -42,11 +42,20 @@ export function OutletProvider({ children }: { children: ReactNode }) {
   const { data: userData } = useDoc<User>(userDocRef);
 
   const outletsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    // Note: This queries all active outlets. For role-based access, you'd
-    // combine this with the user's `outletAccess` array.
-    return query(collection(firestore, 'outlets'), where('active', '==', true));
-  }, [firestore]);
+    if (!firestore || !userData || !Array.isArray(userData.outletAccess) || userData.outletAccess.length === 0) {
+      return null;
+    }
+    
+    console.log("outletAccess:", userData.outletAccess)
+    console.log("type:", typeof userData.outletAccess)
+
+    // Securely query for outlets the user has access to.
+    // An 'in' query with an empty array is invalid, hence the length check.
+    return query(
+      collection(firestore, 'outlets'),
+      where(documentId(), 'in', userData.outletAccess)
+    );
+  }, [firestore, userData]);
 
   const { data: outlets, isLoading: isLoadingOutlets } = useCollection<OutletInfo>(outletsQuery);
 
