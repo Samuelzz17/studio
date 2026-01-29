@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,39 +18,24 @@ import { Separator } from '@/components/ui/separator';
 import {
   useAuth,
   useUser,
-  useFirestore,
   initiateAnonymousSignIn,
   initiateEmailSignIn,
 } from '@/firebase';
 import { Loader } from 'lucide-react';
-import { hasUserData, seedInitialData } from '@/lib/seed';
 
 export default function LoginPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const ensureDataIsSeeded = useCallback(async () => {
-    if (firestore && user && !isUserLoading) {
-      const userHasData = await hasUserData(firestore, user.uid);
-      if (!userHasData) {
-        console.log('New user detected, seeding initial data...');
-        await seedInitialData(firestore, user.uid);
-        console.log('Data seeding complete.');
-      }
-      router.push('/dashboard');
-    }
-  }, [firestore, user, isUserLoading, router]);
-
   useEffect(() => {
     if (!isUserLoading && user) {
-      ensureDataIsSeeded();
+      router.push('/dashboard');
     }
-  }, [user, isUserLoading, ensureDataIsSeeded]);
+  }, [user, isUserLoading, router]);
 
   const handleAnonymousLogin = () => {
     initiateAnonymousSignIn(auth);

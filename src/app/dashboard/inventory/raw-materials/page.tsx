@@ -51,7 +51,7 @@ export default function RawMaterialsPage() {
 
   const rawMaterialsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'raw_materials');
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_raw_materials');
   }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
@@ -97,7 +97,7 @@ export default function RawMaterialsPage() {
                     </TableCell>
                   </TableRow>
                 ) : rawMaterials && rawMaterials.length > 0 ? (
-                  rawMaterials.map((item) => (
+                  rawMaterials.filter(item => item.id !== '_init').map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>

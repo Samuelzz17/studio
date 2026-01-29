@@ -1,71 +1,85 @@
 
-import admin from "firebase-admin"
-import { readFileSync } from "fs"
-import { resolve } from "path"
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+// @ts-ignore
+import serviceAccount from "./serviceAccountKey.json" assert { type: "json" };
 
-// Load service account from a path relative to the project root
-// IMPORTANT: Make sure the serviceAccountKey.json file is in the /scripts directory
-// and that this file is added to .gitignore
-const serviceAccountPath = resolve(process.cwd(), 'scripts/serviceAccountKey.json');
-const serviceAccount = JSON.parse(
-  readFileSync(serviceAccountPath, "utf8")
-);
+/*
+================================================================================
+IMPORTANT: FIREBASE SERVICE ACCOUNT KEY
+================================================================================
+This script requires a Firebase service account key to run.
+
+1.  Go to your Firebase project settings > "Service accounts".
+2.  Click "Generate new private key" and download the JSON file.
+3.  Rename the downloaded file to "serviceAccountKey.json".
+4.  Place the "serviceAccountKey.json" file in this "scripts" directory.
+
+NOTE: This file should NOT be committed to your version control (e.g., Git).
+It's included in the .gitignore file by default.
+================================================================================
+*/
 
 
-// Init admin
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-}
+initializeApp({
+  credential: cert(serviceAccount),
+});
 
+const db = getFirestore();
 
-const db = admin.firestore()
+async function seed() {
+  console.log("🌱 Start seeding...");
 
-const outlets = [
-  { id: "sr_gadjah_mada", name: "SR Gadjah Mada", code: "SRGM" },
-  { id: "sr_jalur_11", name: "SR Jalur 11", code: "SRJ11" }
-]
-
-const wrappers = ["inventory", "pos", "financial", "reports"]
-
-async function seedFirestore() {
-  console.log("🚀 Start seeding Firestore (ADMIN)...")
-  const batch = db.batch();
+  const outlets = [
+    {
+      id: "sr_gadjah_mada",
+      name: "SR Gadjah Mada",
+      code: "SRGM",
+    },
+    {
+      id: "sr_jalur_11",
+      name: "SR Jalur 11",
+      code: "SRJ11",
+    },
+  ];
 
   for (const outlet of outlets) {
-    // The main document for the outlet in the 'outlets' collection
-    const outletDocRef = db.collection("outlets").doc(outlet.id);
-    batch.set(outletDocRef, {
+    const outletRef = db.collection("outlets").doc(outlet.id);
+
+    await outletRef.set({
       name: outlet.name,
       code: outlet.code,
       active: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    })
+      createdAt: new Date(),
+    });
 
-    console.log(`✅ Outlet scheduled for creation: ${outlet.name} (${outlet.code})`)
+    // create empty subcollections (Firestore style)
+    const subCollections = [
+      "inventory_products",
+      "inventory_raw_materials",
+      "inventory_assets",
+      "sales",
+      "purchases_raw",
+      "expenses",
+      "purchases_assets",
+    ];
 
-    // Create wrapper documents inside a '_wrappers' subcollection
-    // This is a valid Firestore structure: collection/document/collection/document
-    for (const wrapper of wrappers) {
-      const wrapperDocRef = outletDocRef.collection("_wrappers").doc(wrapper);
-      batch.set(wrapperDocRef, { 
-        createdAt: admin.firestore.FieldValue.serverTimestamp() 
+    for (const col of subCollections) {
+      await outletRef.collection(col).doc("_init").set({
+        createdAt: new Date(),
+        note: "auto seed",
       });
-      console.log(`   ↳ wrapper '${wrapper}' scheduled`);
     }
+
+    console.log(`✅ Seeded outlet: ${outlet.id}`);
   }
 
-  await batch.commit();
-  console.log("🎉 Firestore seeding DONE!");
+  console.log("🎉 SEEDING DONE");
 }
 
-seedFirestore()
-  .then(() => {
-    console.log("Exiting script.");
+seed().catch((err) => {
+  console.error("❌ Seeding failed:", err);
+  process.exit(1);
+}).then(() => {
     process.exit(0);
-  })
-  .catch((err) => {
-    console.error("❌ Seeding failed:", err)
-    process.exit(1)
-  })
+});

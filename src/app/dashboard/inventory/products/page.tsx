@@ -39,7 +39,7 @@ export default function ProductsPage() {
 
   const productsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'products');
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_products');
   }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: products, isLoading: isLoadingProducts } = useCollection<Product>(productsQuery);
@@ -86,7 +86,7 @@ export default function ProductsPage() {
                     </TableCell>
                   </TableRow>
                 ) : products && products.length > 0 ? (
-                  products.map((item) => (
+                  products.filter(item => item.id !== '_init').map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>{item.category}</TableCell>

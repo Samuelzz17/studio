@@ -50,7 +50,7 @@ export default function SalesPage() {
   const transactionsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
     return query(
-        collection(firestore, `outlets/${selectedOutletId}/transactions`),
+        collection(firestore, `outlets/${selectedOutletId}/sales`),
         orderBy('createdAt', 'desc')
     );
   }, [firestore, selectedOutletId, isOutletSelected]);
@@ -104,7 +104,7 @@ export default function SalesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                sales?.map((sale) => (
+                sales?.filter(sale => sale.id !== '_init').map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-mono text-xs">{sale.invoice}</TableCell>
                     <TableCell className="hidden md:table-cell">

@@ -79,10 +79,10 @@ export default function Dashboard() {
       setIsLoading(true);
 
       const transactionPromises = outletsToQuery.map(outlet => 
-        getDocs(query(collection(firestore, `outlets/${outlet.id}/transactions`), orderBy('createdAt', 'desc'), limit(10)))
+        getDocs(query(collection(firestore, `outlets/${outlet.id}/sales`), orderBy('createdAt', 'desc'), limit(10)))
       );
       const ingredientPromises = outletsToQuery.map(outlet => 
-        getDocs(collection(firestore, `outlets/${outlet.id}/raw_materials`))
+        getDocs(collection(firestore, `outlets/${outlet.id}/inventory_raw_materials`))
       );
       
       const [transactionSnapshots, ingredientSnapshots] = await Promise.all([
@@ -94,6 +94,7 @@ export default function Dashboard() {
       transactionSnapshots.forEach((snap, index) => {
           const outletName = outletsToQuery[index].name;
           snap.docs.forEach(doc => {
+              if (doc.id === '_init') return;
               allTransactions.push({ id: doc.id, ...(doc.data() as Transaction), outletName });
           })
       });
@@ -103,6 +104,7 @@ export default function Dashboard() {
       ingredientSnapshots.forEach((snap, index) => {
           const outletName = outletsToQuery[index].name;
            snap.docs.forEach(doc => {
+              if (doc.id === '_init') return;
               allIngredients.push({ id: doc.id, ...(doc.data() as RawMaterial), outletName });
           })
       });

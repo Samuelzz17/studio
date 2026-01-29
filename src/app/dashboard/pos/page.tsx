@@ -58,14 +58,14 @@ export default function POSPage() {
 
   const menuItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-    return collection(firestore, `outlets/${selectedOutletId}/products`);
+    return collection(firestore, `outlets/${selectedOutletId}/inventory_products`);
   }, [firestore, user, selectedOutletId]);
 
   const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
 
   const transactionsCollectionRef = useMemoFirebase(() => {
       if (!firestore || !user || !selectedOutletId || selectedOutletId === 'all') return null;
-      return collection(firestore, `outlets/${selectedOutletId}/transactions`);
+      return collection(firestore, `outlets/${selectedOutletId}/sales`);
   }, [firestore, user, selectedOutletId]);
 
 
@@ -164,7 +164,7 @@ export default function POSPage() {
        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {menuItems?.filter(item => item.active).map((item) => (
+              {menuItems?.filter(item => item.id !== '_init' && item.active).map((item) => (
                 <Card
                   key={item.id}
                   className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200"

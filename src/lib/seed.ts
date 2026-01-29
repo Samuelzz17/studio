@@ -9,73 +9,38 @@ import {
 } from 'firebase/firestore';
 import { defaultProducts, defaultRawMaterials, defaultAssets } from '@/lib/data';
 
-const outletDefinitions = [
-    { id: 'sr_gadjah_mada', name: 'SR Gadjah Mada', code: 'SRGM' },
-    { id: 'sr_jalur_11', name: 'SR Jalur 11', code: 'SRJ11' }
-];
+// This file is kept for potential future use or for manual seeding scripts
+// that might be run from the client side. The primary seeding mechanism
+// is now handled by the `scripts/seed-firestore.ts` which uses the Admin SDK.
 
 /**
- * Checks if a user document exists in Firestore.
+ * Adds default inventory items to a specific outlet.
+ * This can be called after an outlet is created.
  * @param db The Firestore instance.
- * @param userId The user's ID.
- * @returns True if the user document exists, false otherwise.
+ * @param outletId The ID of the outlet to seed with inventory.
  */
-export async function hasUserData(db: Firestore, userId: string): Promise<boolean> {
-  const userDocRef = doc(db, `users/${userId}`);
-  const docSnap = await getDoc(userDocRef);
-  return docSnap.exists();
-}
-
-/**
- * Seeds initial data for a new user, creating outlets and a user profile.
- * @param db The Firestore instance.
- * @param userId The user's ID.
- */
-export async function seedInitialData(db: Firestore, userId: string) {
-  const batch = writeBatch(db);
-  const now = serverTimestamp();
-
-  // 1. Create Outlet documents and their inventory
-  for (const outletDef of outletDefinitions) {
-    const outletId = outletDef.id;
-
-    // Create outlet info document
-    const outletDocRef = doc(db, `outlets/${outletId}`);
-    batch.set(outletDocRef, {
-        name: outletDef.name,
-        code: outletDef.code,
-        active: true,
-        createdAt: now
-    });
+export async function seedOutletInventory(db: Firestore, outletId: string) {
+    const batch = writeBatch(db);
+    const now = serverTimestamp();
 
     // Add Products
     defaultProducts.forEach((product) => {
-      const itemRef = doc(collection(db, `outlets/${outletId}/products`));
+      const itemRef = doc(collection(db, `outlets/${outletId}/inventory_products`));
       batch.set(itemRef, { ...product, createdAt: now });
     });
 
     // Add Raw Materials
     defaultRawMaterials.forEach((material) => {
-      const materialRef = doc(collection(db, `outlets/${outletId}/raw_materials`));
+      const materialRef = doc(collection(db, `outlets/${outletId}/inventory_raw_materials`));
       batch.set(materialRef, { ...material, createdAt: now });
     });
 
     // Add Assets
     defaultAssets.forEach((asset) => {
-      const assetRef = doc(collection(db, `outlets/${outletId}/asset_investments`));
+      const assetRef = doc(collection(db, `outlets/${outletId}/inventory_assets`));
       batch.set(assetRef, { ...asset, purchaseDate: now, createdAt: now });
     });
-  }
-
-  // 2. Create the User document
-  const userDocRef = doc(db, `users/${userId}`);
-  batch.set(userDocRef, {
-    name: 'Admin User',
-    role: 'owner',
-    outletAccess: outletDefinitions.map(o => o.id), // Grant access to all outlets
-    createdAt: now,
-  });
-
-  // Commit all writes at once
-  await batch.commit();
+    
+    await batch.commit();
+    console.log(`Inventory seeded for outlet ${outletId}`);
 }

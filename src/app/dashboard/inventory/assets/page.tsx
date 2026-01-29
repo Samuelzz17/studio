@@ -39,7 +39,7 @@ export default function AssetsPage() {
 
   const assetsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return collection(firestore, 'outlets', selectedOutletId!, 'asset_investments');
+    return collection(firestore, 'outlets', selectedOutletId!, 'inventory_assets');
   }, [firestore, selectedOutletId, isOutletSelected]);
   
   const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsQuery);
@@ -85,7 +85,7 @@ export default function AssetsPage() {
                     </TableCell>
                   </TableRow>
                 ) : assets && assets.length > 0 ? (
-                  assets.map((item) => (
+                  assets.filter(item => item.id !== '_init').map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
                       <TableCell>${item.value.toFixed(2)}</TableCell>

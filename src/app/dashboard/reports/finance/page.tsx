@@ -33,12 +33,12 @@ export default function FinanceReportPage() {
 
   const transactionsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/transactions`));
+    return query(collection(firestore, `outlets/${selectedOutletId}/sales`));
   }, [firestore, selectedOutletId, isOutletSelected]);
   
   const productsQuery = useMemoFirebase(() => {
     if (!firestore || !isOutletSelected) return null;
-    return query(collection(firestore, `outlets/${selectedOutletId}/products`));
+    return query(collection(firestore, `outlets/${selectedOutletId}/inventory_products`));
   }, [firestore, selectedOutletId, isOutletSelected]);
 
   const { data: sales } = useCollection<Transaction>(transactionsQuery);
@@ -46,13 +46,16 @@ export default function FinanceReportPage() {
 
   const productMap = useMemo(() => {
     if (!products) return new Map();
-    return new Map(products.map(p => [p.id, p]));
+    const filteredProducts = products.filter(p => p.id !== '_init');
+    return new Map(filteredProducts.map(p => [p.id, p]));
   }, [products]);
 
   const salesByCategory = useMemo(() => {
     if (!sales || productMap.size === 0) return [];
     const categoryMap: { [key: string]: number } = {};
-    sales.forEach(sale => {
+    const filteredSales = sales.filter(s => s.id !== '_init');
+
+    filteredSales.forEach(sale => {
       sale.items.forEach(item => {
         const product = productMap.get(item.productId);
         if (product) {
@@ -69,7 +72,8 @@ export default function FinanceReportPage() {
   const salesByHour = useMemo(() => {
     if (!sales) return [];
     const hourMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, sales: 0 }));
-     sales.forEach(sale => {
+    const filteredSales = sales.filter(s => s.id !== '_init');
+     filteredSales.forEach(sale => {
         const hour = sale.createdAt.toDate().getHours();
         hourMap[hour].sales += sale.total;
      });
@@ -79,7 +83,8 @@ export default function FinanceReportPage() {
   const dailyRevenue = useMemo(() => {
     if (!sales) return [];
     const revenueMap: { [key: string]: number } = {};
-    sales.forEach(sale => {
+    const filteredSales = sales.filter(s => s.id !== '_init');
+    filteredSales.forEach(sale => {
       const date = sale.createdAt.toDate().toLocaleDateString('en-CA');
       if (!revenueMap[date]) {
         revenueMap[date] = 0;

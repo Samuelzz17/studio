@@ -5,12 +5,11 @@ import {
   createContext,
   useContext,
   useState,
-  useEffect,
   type ReactNode,
   useCallback,
 } from 'react';
-import { useFirebase, useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, where, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import type { User, OutletInfo } from '@/lib/data';
 import {
   Select,
@@ -20,8 +19,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader } from 'lucide-react';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, serverTimestamp } from 'firebase/firestore';
 
 interface OutletContextType {
   outlets: (OutletInfo & { id: string })[] | null;
@@ -34,95 +31,78 @@ interface OutletContextType {
 const OutletContext = createContext<OutletContextType | undefined>(undefined);
 
 export function OutletProvider({ children }: { children: ReactNode }) {
-  const { firestore } = useFirebase();
-  const { user: authUser, isUserLoading } = useUser();
+  const { firestore, auth } = useFirebase();
+  const { user: authUser } = useUser();
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>('all');
-  const [outlets, setOutlets] = useState<(OutletInfo & { id: string })[] | null>(null);
-  const [isLoadingOutlets, setIsLoadingOutlets] = useState(true);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !authUser) return null;
     return doc(firestore, `users/${authUser.uid}`);
   }, [firestore, authUser]);
+  const { data: userData } = useDoc<User>(userDocRef);
 
-  const { data: userData, isLoading: isLoadingUserDoc } = useDoc<User>(userDocRef);
+  const outletsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    // Note: This queries all active outlets. For role-based access, you'd
+    // combine this with the user's `outletAccess` array.
+    return query(collection(firestore, 'outlets'), where('active', '==', true));
+  }, [firestore]);
 
-  const fetchOutlets = useCallback(async () => {
-    if (!firestore || !userData) {
-      if (!isLoadingUserDoc && !isUserLoading) {
-        setOutlets([]);
-        setIsLoadingOutlets(false);
-      }
-      return;
-    }
-
-    setIsLoadingOutlets(true);
-    try {
-      console.log("outletAccess:", userData.outletAccess);
-      console.log("type:", typeof userData.outletAccess);
-
-      const outletIds = Array.isArray(userData.outletAccess)
-        ? userData.outletAccess
-        : [];
-
-      if (outletIds.length === 0) {
-        setOutlets([]);
-        setIsLoadingOutlets(false);
-        return;
-      }
-
-      const outletPromises = outletIds.map(outletId =>
-        getDoc(doc(firestore, `outlets/${outletId}`))
-      );
-      const outletSnapshots = await Promise.all(outletPromises);
-      const fetchedOutlets = outletSnapshots
-        .filter(snap => snap.exists())
-        .map(snap => ({ ...snap.data(), id: snap.id } as OutletInfo & { id: string }));
-      
-      setOutlets(fetchedOutlets);
-    } catch (error) {
-      console.error("Error fetching outlets:", error);
-      setOutlets([]);
-    } finally {
-      setIsLoadingOutlets(false);
-    }
-  }, [firestore, userData, isLoadingUserDoc, isUserLoading]);
-
-
-  useEffect(() => {
-    fetchOutlets();
-  }, [fetchOutlets]);
+  const { data: outlets, isLoading: isLoadingOutlets } = useCollection<OutletInfo>(outletsQuery);
 
   const addOutlet = useCallback(async (name: string, code: string) => {
-    if (!firestore || !userDocRef) return;
-    
-    // Create new outlet document
-    const newOutletRef = await addDocumentNonBlocking(collection(firestore, 'outlets'), {
-      name,
-      code,
-      active: true,
-      createdAt: serverTimestamp(),
-    });
-
-    if (newOutletRef && userData) {
-      // TODO: Seed data for the new outlet (products, raw_materials, etc.)
-      
-      // Update user's outletAccess
-      const currentAccess = Array.isArray(userData.outletAccess) ? userData.outletAccess : [];
-      const updatedAccess = [...currentAccess, newOutletRef.id];
-      await addDocumentNonBlocking(userDocRef, { outletAccess: updatedAccess });
-
-      // Refetch outlets to update the UI
-      await fetchOutlets();
+    if (!firestore || !userDocRef) {
+      console.error("Firestore or user reference not available.");
+      return;
     }
-  }, [firestore, userDocRef, userData, fetchOutlets]);
+    
+    try {
+      const newOutletRef = doc(collection(firestore, 'outlets'));
+      const batch = writeBatch(firestore);
+
+      // 1. Create the new outlet document
+      batch.set(newOutletRef, {
+        name,
+        code,
+        active: true,
+        createdAt: serverTimestamp(),
+      });
+
+      // 2. Create placeholder documents in subcollections
+      const subCollections = [
+        "inventory_products", "inventory_raw_materials", "inventory_assets",
+        "sales", "purchases_raw", "expenses", "purchases_assets",
+      ];
+      for (const col of subCollections) {
+          const initDocRef = doc(collection(newOutletRef, col), "_init");
+          batch.set(initDocRef, {
+              createdAt: serverTimestamp(),
+              note: "auto created on outlet add",
+          });
+      }
+
+      // 3. Update user's outletAccess array
+      if (userData) {
+        const currentAccess = Array.isArray(userData.outletAccess) ? userData.outletAccess : [];
+        const updatedAccess = [...currentAccess, newOutletRef.id];
+        batch.update(userDocRef, { outletAccess: updatedAccess });
+      }
+
+      // 4. Commit all operations
+      await batch.commit();
+      console.log(`Outlet ${name} created successfully.`);
+
+    } catch (error) {
+      console.error("Error adding outlet:", error);
+    }
+  }, [firestore, userDocRef, userData]);
 
 
   const value = {
     outlets,
     selectedOutletId,
     setSelectedOutletId,
-    isLoading: isLoadingOutlets || isLoadingUserDoc || isUserLoading,
+    isLoading: isLoadingOutlets,
     addOutlet,
   };
 
