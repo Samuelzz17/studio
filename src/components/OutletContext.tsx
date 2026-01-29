@@ -115,14 +115,14 @@ export function OutletSwitcher() {
       onValueChange={setSelectedOutletId}
       disabled={!outlets || outlets.length === 0}
     >
-      <SelectTrigger className="w-[180px] text-sm">
+      <SelectTrigger className="w-[220px] text-sm">
         <SelectValue placeholder="Select Outlet" />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All Outlets</SelectItem>
         {outlets?.map((outlet) => (
           <SelectItem key={outlet.id} value={outlet.id}>
-            {outlet.name}
+            {outlet.name} ({outlet.code})
           </SelectItem>
         ))}
       </SelectContent>
