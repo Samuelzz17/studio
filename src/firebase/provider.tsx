@@ -80,28 +80,22 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth,
       async (firebaseUser) => { // Auth state determined
         if (firebaseUser) {
-            // After user is authenticated, check if their document exists in Firestore.
             const userDocRef = doc(firestore, 'users', firebaseUser.uid);
             try {
                 const userDocSnap = await getDoc(userDocRef);
                 if (!userDocSnap.exists()) {
-                    // If the user document doesn't exist, this is their first sign-in.
-                    // Create the document and grant access to the pre-seeded outlets.
                     await setDoc(userDocRef, {
                         name: firebaseUser.displayName || firebaseUser.email || 'Anonymous User',
-                        role: 'owner', // Default new users to 'owner'
-                        outletAccess: ['sr_gadjah_mada', 'sr_jalur_11'], // Grant access to seeded outlets
+                        role: 'owner', 
+                        outletAccess: ['sr_gadjah_mada', 'sr_jalur_11'],
                         createdAt: serverTimestamp(),
                     });
-                    console.log(`Created user document for ${firebaseUser.uid} with default outlet access.`);
                 }
-            } catch (error) {
-                 console.error("Error checking or creating user document:", error);
-                 // This could be a permissions error if rules are too strict, or a network issue.
+            } catch (e) {
+                 console.error("User bootstrap failed:", e);
             }
         }
         
-        // Set the user auth state regardless of the doc creation outcome
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
