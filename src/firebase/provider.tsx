@@ -2,7 +2,7 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Import firestore functions
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
@@ -69,8 +69,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
   // Effect to subscribe to Firebase auth state changes
   useEffect(() => {
-    if (!auth) { // If no Auth service instance, cannot determine user state
-      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
+    if (!auth || !firestore) { // If no Auth/Firestore service instance, cannot proceed
+      setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth or Firestore service not provided.") });
       return;
     }
 
@@ -78,7 +78,30 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      (firebaseUser) => { // Auth state determined
+      async (firebaseUser) => { // Auth state determined
+        if (firebaseUser) {
+            // After user is authenticated, check if their document exists in Firestore.
+            const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+            try {
+                const userDocSnap = await getDoc(userDocRef);
+                if (!userDocSnap.exists()) {
+                    // If the user document doesn't exist, this is their first sign-in.
+                    // Create the document and grant access to the pre-seeded outlets.
+                    await setDoc(userDocRef, {
+                        name: firebaseUser.displayName || firebaseUser.email || 'Anonymous User',
+                        role: 'owner', // Default new users to 'owner'
+                        outletAccess: ['sr_gadjah_mada', 'sr_jalur_11'], // Grant access to seeded outlets
+                        createdAt: serverTimestamp(),
+                    });
+                    console.log(`Created user document for ${firebaseUser.uid} with default outlet access.`);
+                }
+            } catch (error) {
+                 console.error("Error checking or creating user document:", error);
+                 // This could be a permissions error if rules are too strict, or a network issue.
+            }
+        }
+        
+        // Set the user auth state regardless of the doc creation outcome
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => { // Auth listener error
@@ -87,7 +110,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe(); // Cleanup
-  }, [auth]); // Depends on the auth instance
+  }, [auth, firestore]); // Depends on the auth and firestore instances
 
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
