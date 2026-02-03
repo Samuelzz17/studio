@@ -260,6 +260,12 @@ export default function POSPage() {
     }
   }
 
+  const handlePrintReceipt = () => {
+    document.body.classList.add('printing');
+    window.print();
+    document.body.classList.remove('printing');
+  };
+
 
   const renderContent = () => {
     if (isLoadingOutlets || !activeOutlet || isLoadingRawMaterials) {
@@ -491,7 +497,7 @@ export default function POSPage() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setCompletedTransaction(null)}>Close</Button>
-                    <Button onClick={() => window.print()}>
+                    <Button onClick={handlePrintReceipt}>
                         <Printer className="mr-2 h-4 w-4" /> Print Receipt
                     </Button>
                 </DialogFooter>
