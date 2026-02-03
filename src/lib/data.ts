@@ -17,13 +17,18 @@ export type OutletInfo = {
   createdAt: Timestamp;
 };
 
+export type RecipeItem = {
+    materialId: string;
+    quantity: number;
+}
+
 export type Product = {
   id: string;
   name: string;
   category: string;
   price: number;
-  cost: number;
   active: boolean;
+  recipe: RecipeItem[];
   createdAt: Timestamp;
 };
 
@@ -33,6 +38,7 @@ export type RawMaterial = {
   unit: 'kg' | 'g' | 'L' | 'mL' | 'pcs';
   stock: number;
   minimumStock: number;
+  averageCost: number;
   createdAt: Timestamp;
 };
 
@@ -84,23 +90,23 @@ export type Expense = {
 
 // Default data for seeding
 export const defaultProducts: Omit<Product, 'id' | 'createdAt'>[] = [
-  { name: 'Espresso', category: 'Coffee', price: 3.0, cost: 0.5, active: true },
-  { name: 'Cappuccino', category: 'Coffee', price: 4.5, cost: 0.8, active: true },
-  { name: 'Americano', category: 'Coffee', price: 3.5, cost: 0.5, active: true },
-  { name: 'Croissant', category: 'Pastries', price: 2.75, cost: 1.0, active: true },
-  { name: 'Chocolate Brownie', category: 'Pastries', price: 3.25, cost: 1.2, active: true },
-  { name: 'Avocado Toast', category: 'Food', price: 8.5, cost: 3.5, active: true },
-  { name: 'Drip Coffee', category: 'Coffee', price: 2.5, cost: 0.4, active: true },
-  { name: 'Iced Latte', category: 'Coffee', price: 5.0, cost: 1.0, active: true },
-  { name: 'Cinnamon Roll', category: 'Pastries', price: 4.0, cost: 1.5, active: true },
+  { name: 'Espresso', category: 'Coffee', price: 18000, active: true, recipe: [{ materialId: 'coffee_beans', quantity: 18 }] },
+  { name: 'Cappuccino', category: 'Coffee', price: 25000, active: true, recipe: [{ materialId: 'coffee_beans', quantity: 18 }, { materialId: 'whole_milk', quantity: 150 }] },
+  { name: 'Americano', category: 'Coffee', price: 20000, active: true, recipe: [{ materialId: 'coffee_beans', quantity: 18 }] },
+  { name: 'Croissant', category: 'Pastries', price: 22000, active: true, recipe: [{ materialId: 'flour', quantity: 100 }, { materialId: 'sugar', quantity: 20 }] },
+  { name: 'Chocolate Brownie', category: 'Pastries', price: 28000, active: true, recipe: [{ materialId: 'flour', quantity: 50 }, { materialId: 'sugar', quantity: 40 }, { materialId: 'chocolate_chips', quantity: 30 }] },
+  { name: 'Avocado Toast', category: 'Food', price: 45000, active: true, recipe: [] },
+  { name: 'Drip Coffee', category: 'Coffee', price: 15000, active: true, recipe: [{ materialId: 'coffee_beans', quantity: 15 }] },
+  { name: 'Iced Latte', category: 'Coffee', price: 28000, active: true, recipe: [{ materialId: 'coffee_beans', quantity: 18 }, { materialId: 'whole_milk', quantity: 200 }] },
+  { name: 'Cinnamon Roll', category: 'Pastries', price: 26000, active: true, recipe: [{ materialId: 'flour', quantity: 120 }, { materialId: 'sugar', quantity: 50 }] },
 ];
 
 export const defaultRawMaterials: Omit<RawMaterial, 'id' | 'createdAt'>[] = [
-    { name: "Coffee Beans", stock: 10, unit: "kg", minimumStock: 2 },
-    { name: "Whole Milk", stock: 20, unit: "L", minimumStock: 5 },
-    { name: "Flour", stock: 50, unit: "kg", minimumStock: 10 },
-    { name: "Sugar", stock: 30, unit: "kg", minimumStock: 5 },
-    { name: "Chocolate Chips", stock: 5, unit: "kg", minimumStock: 1 },
+    { id: 'coffee_beans', name: "Coffee Beans", stock: 10000, unit: "g", minimumStock: 2000, averageCost: 200 }, // Rp 200/g
+    { id: 'whole_milk', name: "Whole Milk", stock: 20000, unit: "mL", minimumStock: 5000, averageCost: 15 }, // Rp 15/mL
+    { id: 'flour', name: "Flour", stock: 50000, unit: "g", minimumStock: 10000, averageCost: 10 }, // Rp 10/g
+    { id: 'sugar', name: "Sugar", stock: 30000, unit: "g", minimumStock: 5000, averageCost: 12 }, // Rp 12/g
+    { id: 'chocolate_chips', name: "Chocolate Chips", stock: 5000, unit: "g", minimumStock: 1000, averageCost: 50 }, // Rp 50/g
 ];
 
 export const defaultAssets: Omit<AssetInvestment, 'id' | 'createdAt' | 'purchaseDate'>[] = [

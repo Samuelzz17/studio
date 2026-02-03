@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { Product } from '@/lib/data';
+import type { Product, RawMaterial } from '@/lib/data';
 import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -28,11 +28,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, serverTimestamp, runTransaction, doc, increment } from 'firebase/firestore';
 import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
-import { v4 as uuidv4 } from 'uuid';
 import { formatCurrency } from '@/lib/currency';
 
 type OrderItem = Product & { quantity: number };
@@ -62,12 +60,29 @@ export default function POSPage() {
     return collection(firestore, `outlets/${activeOutlet.id}/inventory_products`);
   }, [firestore, user, activeOutlet]);
 
-  const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
+  const rawMaterialsQuery = useMemoFirebase(() => {
+    if (!firestore || !activeOutlet) return null;
+    return collection(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials');
+  }, [firestore, activeOutlet]);
 
-  const transactionsCollectionRef = useMemoFirebase(() => {
-      if (!firestore || !user || !activeOutlet) return null;
-      return collection(firestore, `outlets/${activeOutlet.id}/sales`);
-  }, [firestore, user, activeOutlet]);
+  const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
+  const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
+
+  const rawMaterialsMap = useMemo(() => {
+    if (!rawMaterials) return new Map<string, RawMaterial>();
+    return new Map(rawMaterials.map(m => [m.id, m]));
+  }, [rawMaterials]);
+
+  const calculateProducibleQty = useCallback((product: Product) => {
+    if (!product.recipe || product.recipe.length === 0) return Infinity;
+    const stockRatios = product.recipe.map(recipeItem => {
+      const material = rawMaterialsMap.get(recipeItem.materialId);
+      const stock = material ? material.stock : 0;
+      if (recipeItem.quantity === 0) return Infinity;
+      return Math.floor(stock / recipeItem.quantity);
+    });
+    return Math.min(...stockRatios);
+  }, [rawMaterialsMap]);
 
 
   const handleAddItem = (item: Product) => {
@@ -119,42 +134,81 @@ export default function POSPage() {
     })
   }
   
-  const handleCheckout = (paymentMethod: 'Cash' | 'Card' | 'Bank') => {
-    if (!transactionsCollectionRef || orderItems.length === 0) return;
+  const handleCheckout = async (paymentMethod: 'Cash' | 'Card' | 'Bank') => {
+    if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
 
-    const newTransaction = {
-        invoice: `INV-${Date.now()}`,
-        items: orderItems.map(item => ({
-            productId: item.id,
-            qty: item.quantity,
-            price: item.price
-        })),
-        total: total,
-        paymentMethod,
-        createdAt: serverTimestamp(),
-    };
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const productDetailsMap = new Map(menuItems.map(p => [p.id, p]));
+        const stockDeductions = new Map<string, number>();
 
-    const paymentMethodDisplay = {
-        'Cash': 'Tunai',
-        'Card': 'Kartu',
-        'Bank': 'Transfer Bank'
-    };
+        // 1. Calculate total stock deductions and check availability
+        for (const orderItem of orderItems) {
+          const product = productDetailsMap.get(orderItem.id);
+          if (product?.recipe) {
+            for (const recipeItem of product.recipe) {
+              const currentDeduction = stockDeductions.get(recipeItem.materialId) || 0;
+              stockDeductions.set(recipeItem.materialId, currentDeduction + (recipeItem.quantity * orderItem.quantity));
+            }
+          }
+        }
+        
+        for (const [materialId,-to-deduct] of stockDeductions.entries()) {
+          const materialRef = doc(firestore, `outlets/${activeOutlet.id}/inventory_raw_materials/${materialId}`);
+          const materialSnap = await transaction.get(materialRef);
+          if (!materialSnap.exists() || materialSnap.data().stock <-to-deduct) {
+            const material = rawMaterialsMap.get(materialId);
+            throw new Error(`Insufficient stock for: ${material?.name || 'Unknown Item'}`);
+          }
+        }
 
-    addDocumentNonBlocking(transactionsCollectionRef, newTransaction);
-    toast({
-        title: "Pesanan Berhasil!",
-        description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
-    });
-    setOrderItems([]);
-    setIsCheckoutSheetOpen(false);
+        // 2. Perform stock updates
+        for (const [materialId, decrementAmount] of stockDeductions.entries()) {
+          const materialRef = doc(firestore, `outlets/${activeOutlet.id}/inventory_raw_materials/${materialId}`);
+          transaction.update(materialRef, { stock: increment(-decrementAmount) });
+        }
+        
+        // 3. Create sales record
+        const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
+        const newTransaction = {
+            invoice: `INV-${Date.now()}`,
+            items: orderItems.map(item => ({
+                productId: item.id,
+                qty: item.quantity,
+                price: item.price
+            })),
+            total: total,
+            paymentMethod,
+            createdAt: serverTimestamp(),
+        };
+        transaction.set(newTransactionRef, newTransaction);
+      });
+
+      const paymentMethodDisplay = { 'Cash': 'Tunai', 'Card': 'Kartu', 'Bank': 'Transfer Bank' };
+      toast({
+          title: "Pesanan Berhasil!",
+          description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
+      });
+      setOrderItems([]);
+      setIsCheckoutSheetOpen(false);
+
+    } catch (e: any) {
+      console.error("Checkout transaction failed: ", e);
+      toast({
+        title: 'Checkout Failed',
+        description: e.message || 'Could not complete the transaction.',
+        variant: 'destructive',
+      });
+    }
   }
 
+
   const renderContent = () => {
-    if (isLoadingOutlets || !activeOutlet) {
+    if (isLoadingOutlets || !activeOutlet || isLoadingRawMaterials) {
        return (
         <div className="flex flex-1 items-center justify-center">
             <Loader className="h-8 w-8 animate-spin" />
-            {!isLoadingOutlets && <p className="ml-4 text-muted-foreground">Redirecting...</p>}
+            {!isLoadingOutlets && !activeOutlet && <p className="ml-4 text-muted-foreground">Redirecting...</p>}
         </div>
        );
     }
@@ -171,28 +225,40 @@ export default function POSPage() {
        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {menuItems?.filter(item => item.id !== '_init' && item.active).map((item) => (
-                <Card
-                  key={item.id}
-                  className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                  onClick={() => handleAddItem(item)}
-                >
-                  <Image
-                    src={`https://picsum.photos/seed/${item.id}/400/300`}
-                    alt={item.name}
-                    width={400}
-                    height={300}
-                    className="aspect-video w-full object-cover"
-                    data-ai-hint={`${item.category.toLowerCase()} food`}
-                  />
-                  <CardHeader className="p-4">
-                    <CardTitle className="text-lg">{item.name}</CardTitle>
-                    <p className="font-semibold text-primary">
-                      {formatCurrency(item.price)}
-                    </p>
-                  </CardHeader>
-                </Card>
-              ))}
+              {menuItems?.filter(item => item.id !== '_init' && item.active).map((item) => {
+                const producibleQty = calculateProducibleQty(item);
+                const isAvailable = producibleQty > 0;
+                return (
+                  <Card
+                    key={item.id}
+                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:ring-2 data-[disabled=true]:ring-destructive/50"
+                    onClick={() => isAvailable && handleAddItem(item)}
+                    data-disabled={!isAvailable}
+                  >
+                    <div className="relative">
+                      <Image
+                        src={`https://picsum.photos/seed/${item.id}/400/300`}
+                        alt={item.name}
+                        width={400}
+                        height={300}
+                        className="aspect-video w-full object-cover"
+                        data-ai-hint={`${item.category.toLowerCase()} food`}
+                      />
+                      {!isAvailable && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <p className="text-white font-bold text-lg">Out of Stock</p>
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="p-4">
+                      <CardTitle className="text-lg">{item.name}</CardTitle>
+                      <p className="font-semibold text-primary">
+                        {formatCurrency(item.price)}
+                      </p>
+                    </CardHeader>
+                  </Card>
+                )
+              })}
             </div>
           </div>
           <Card className="md:col-span-1 lg:col-span-1 flex flex-col h-fit sticky top-24">

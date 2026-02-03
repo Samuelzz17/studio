@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -31,6 +32,7 @@ const formSchema = z.object({
   minimumStock: z.coerce
     .number()
     .min(0, { message: 'Minimum stock cannot be negative.' }),
+  averageCost: z.coerce.number().min(0, { message: 'Initial cost must be a positive number.' }).optional(),
 });
 
 export type RawMaterialFormData = z.infer<typeof formSchema>;
@@ -50,9 +52,10 @@ export function RawMaterialForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name ?? '',
-      unit: initialData?.unit ?? 'pcs',
+      unit: initialData?.unit ?? 'g',
       stock: initialData?.stock ?? 0,
       minimumStock: initialData?.minimumStock ?? 0,
+      averageCost: initialData?.averageCost ?? 0,
     },
   });
 
@@ -111,30 +114,46 @@ export function RawMaterialForm({
                 <FormControl>
                   <Input type="number" placeholder="0" {...field} />
                 </FormControl>
-                <FormDescription>Current quantity in stock.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="minimumStock"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Minimum Stock Level</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="0" {...field} />
-              </FormControl>
-              <FormDescription>
-                Get a low stock warning when the stock reaches this level.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="minimumStock"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Minimum Stock Level</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="0" {...field} />
+                </FormControl>
+                 <FormDescription>Low stock warning level.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="averageCost"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Initial Average Cost</FormLabel>
+                <FormControl>
+                   <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">IDR</span>
+                        <Input type="number" className="pl-9" placeholder="0" {...field} />
+                    </div>
+                </FormControl>
+                <FormDescription>Cost per unit.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
         <Button type="submit" disabled={isSubmitting} className="w-full">
            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {isSubmitting ? 'Saving...' : 'Save Item'}

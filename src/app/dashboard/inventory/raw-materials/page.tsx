@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -50,6 +51,7 @@ import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { RawMaterialForm, type RawMaterialFormData } from '@/components/forms/RawMaterialForm';
 import { PurchaseForm, type PurchaseFormData } from '@/components/forms/PurchaseForm';
 import { useToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/currency';
 
 
 function getStockStatus(stock: number, minimumStock: number) {
@@ -95,6 +97,7 @@ export default function RawMaterialsPage() {
     
     const newDoc = {
         ...values,
+        averageCost: values.averageCost || 0,
         createdAt: serverTimestamp(),
     };
     addDocumentNonBlocking(rawMaterialsCollectionRef, newDoc);
@@ -126,10 +129,23 @@ export default function RawMaterialsPage() {
             if (!materialSnap.exists()) {
                 throw "Material document does not exist!";
             }
-            const currentStock = materialSnap.data().stock;
-            const newStock = currentStock + values.quantity;
+            
+            const materialData = materialSnap.data();
+            const currentStock = materialData.stock || 0;
+            const currentAverageCost = materialData.averageCost || 0;
+            const purchaseQuantity = values.quantity;
 
-            transaction.update(materialRef, { stock: newStock });
+            const newStock = currentStock + purchaseQuantity;
+            
+            const newAverageCost = newStock > 0 
+              ? ((currentStock * currentAverageCost) + values.totalCost) / newStock
+              : 0;
+
+            transaction.update(materialRef, { 
+                stock: newStock,
+                averageCost: newAverageCost 
+            });
+
 
             const newPurchase: Omit<Purchase, 'id' | 'createdAt'> & { createdAt: any } = {
                 materialName: selectedMaterial.name,
@@ -195,6 +211,7 @@ export default function RawMaterialsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
+                  <TableHead>Avg. Cost</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Stock</TableHead>
                   <TableHead>
@@ -205,7 +222,7 @@ export default function RawMaterialsPage() {
               <TableBody>
                 {isLoadingRawMaterials ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       <Loader className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
@@ -213,6 +230,7 @@ export default function RawMaterialsPage() {
                   rawMaterials.filter(item => item.id !== '_init').map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
+                      <TableCell>{formatCurrency(item.averageCost)} / {item.unit}</TableCell>
                       <TableCell>
                         <Badge variant={getStockStatus(item.stock, item.minimumStock)}>
                           {getStockStatusText(item.stock, item.minimumStock)}
@@ -243,7 +261,7 @@ export default function RawMaterialsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center">
+                    <TableCell colSpan={5} className="text-center">
                       No raw materials found.
                     </TableCell>
                   </TableRow>

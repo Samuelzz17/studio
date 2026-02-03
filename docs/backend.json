@@ -28,16 +28,27 @@
     "Product": {
       "title": "Product",
       "type": "object",
-      "description": "A sellable product in the inventory.",
+      "description": "A sellable product in the inventory with a defined recipe.",
       "properties": {
         "name": { "type": "string" },
         "category": { "type": "string" },
         "price": { "type": "number" },
-        "cost": { "type": "number" },
         "active": { "type": "boolean" },
+        "recipe": {
+          "type": "array",
+          "description": "The bill of materials for this product.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "materialId": { "type": "string" },
+              "quantity": { "type": "number" }
+            },
+            "required": ["materialId", "quantity"]
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "category", "price", "cost", "active", "createdAt"]
+      "required": ["name", "category", "price", "active", "createdAt"]
     },
     "RawMaterial": {
       "title": "Raw Material",
@@ -48,6 +59,7 @@
         "unit": { "type": "string", "enum": ["kg", "g", "L", "mL", "pcs"] },
         "stock": { "type": "number" },
         "minimumStock": { "type": "number" },
+        "averageCost": { "type": "number", "description": "The weighted average cost of this material." },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "unit", "stock", "minimumStock", "createdAt"]

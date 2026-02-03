@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -20,7 +21,7 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Loader, Plus } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, serverTimestamp, runTransaction, query, orderBy } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, runTransaction, query, orderBy, increment } from 'firebase/firestore';
 import type { Purchase, RawMaterial } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { formatCurrency } from '@/lib/currency';
@@ -83,10 +84,22 @@ export default function PurchasesPage() {
             if (!materialSnap.exists()) {
                 throw "Material document does not exist!";
             }
-            const currentStock = materialSnap.data().stock;
-            const newStock = currentStock + values.quantity;
+            
+            const materialData = materialSnap.data();
+            const currentStock = materialData.stock || 0;
+            const currentAverageCost = materialData.averageCost || 0;
+            const purchaseQuantity = values.quantity;
 
-            transaction.update(materialRef, { stock: newStock });
+            const newStock = currentStock + purchaseQuantity;
+            
+            const newAverageCost = newStock > 0 
+              ? ((currentStock * currentAverageCost) + values.totalCost) / newStock
+              : 0;
+
+            transaction.update(materialRef, { 
+                stock: newStock,
+                averageCost: newAverageCost 
+            });
 
             const newPurchase: Omit<Purchase, 'id' | 'createdAt'> & { createdAt: any } = {
                 materialName: selectedMaterial.name,
