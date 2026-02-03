@@ -153,10 +153,10 @@ export default function POSPage() {
           }
         }
         
-        for (const [materialId,-to-deduct] of stockDeductions.entries()) {
+        for (const [materialId, toDeduct] of stockDeductions.entries()) {
           const materialRef = doc(firestore, `outlets/${activeOutlet.id}/inventory_raw_materials/${materialId}`);
           const materialSnap = await transaction.get(materialRef);
-          if (!materialSnap.exists() || materialSnap.data().stock <-to-deduct) {
+          if (!materialSnap.exists() || materialSnap.data().stock < toDeduct) {
             const material = rawMaterialsMap.get(materialId);
             throw new Error(`Insufficient stock for: ${material?.name || 'Unknown Item'}`);
           }
@@ -397,3 +397,5 @@ export default function POSPage() {
     </div>
   );
 }
+
+    
