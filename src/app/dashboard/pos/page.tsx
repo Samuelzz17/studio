@@ -116,6 +116,23 @@ export default function POSPage() {
   const handleAddItem = (preference: OrderPreference) => {
     if (!productToAdd) return;
 
+    const currentQtyInCart = orderItems
+      .filter((item) => item.id === productToAdd.id)
+      .reduce((sum, item) => sum + item.quantity, 0);
+    
+    const producibleQty = calculateProducibleQty(productToAdd);
+
+    if (currentQtyInCart + 1 > producibleQty) {
+        toast({
+            title: 'Stock Limit Reached',
+            description: `Cannot add more ${productToAdd.name}. Only ${producibleQty} can be produced.`,
+            variant: 'destructive',
+        });
+        setIsPreferenceDialogOpen(false);
+        setProductToAdd(null);
+        return;
+    }
+
     setOrderItems((prevItems) => {
       const existingItemIndex = prevItems.findIndex(
         (i) => i.id === productToAdd.id && i.preference === preference
@@ -139,6 +156,26 @@ export default function POSPage() {
   };
 
   const handleUpdateQuantity = (productId: string, preference: OrderPreference, amount: number) => {
+    if (amount > 0) {
+        const product = menuItemsMap.get(productId);
+        if (!product) return;
+
+        const currentQtyInCart = orderItems
+            .filter(item => item.id === productId)
+            .reduce((sum, item) => sum + item.quantity, 0);
+        
+        const producibleQty = calculateProducibleQty(product);
+
+        if (currentQtyInCart + amount > producibleQty) {
+            toast({
+                title: 'Stock Limit Reached',
+                description: `Cannot add more ${product.name}. Only ${producibleQty} can be produced.`,
+                variant: 'destructive',
+            });
+            return;
+        }
+    }
+
     setOrderItems((prevItems) => {
       return prevItems
         .map((item) => {
@@ -178,13 +215,27 @@ export default function POSPage() {
     const invoiceId = `INV-${Date.now()}`;
 
     try {
+      const finalTransactionDataForReceipt: Transaction = {
+        id: newTransactionRef.id,
+        invoice: invoiceId,
+        customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
+        items: orderItems.map(item => ({
+          productId: item.id,
+          qty: item.quantity,
+          price: item.price,
+          preference: item.preference,
+        })),
+        total: total,
+        paymentMethod,
+        createdAt: new Date() as any, // Use client date for immediate display
+      };
+
       await runTransaction(firestore, async (transaction) => {
-        const productDetailsMap = new Map(menuItems.map(p => [p.id, p]));
         const stockDeductions = new Map<string, number>();
 
         // 1. Calculate total stock deductions and check availability
         for (const orderItem of orderItems) {
-          const product = productDetailsMap.get(orderItem.id);
+          const product = menuItemsMap.get(orderItem.id);
           if (product?.recipe) {
             for (const recipeItem of product.recipe) {
               const currentDeduction = stockDeductions.get(recipeItem.materialId) || 0;
@@ -210,18 +261,11 @@ export default function POSPage() {
         
         // 3. Create sales record
         const newTransactionData = {
-            invoice: invoiceId,
-            customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
-            items: orderItems.map(item => ({
-                productId: item.id,
-                qty: item.quantity,
-                price: item.price,
-                preference: item.preference,
-            })),
-            total: total,
-            paymentMethod,
-            createdAt: serverTimestamp(),
+          ...finalTransactionDataForReceipt,
+          createdAt: serverTimestamp(),
         };
+        delete (newTransactionData as any).id;
+        
         transaction.set(newTransactionRef, newTransactionData);
       });
 
@@ -231,21 +275,7 @@ export default function POSPage() {
           description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
       });
       
-      const finalTransactionData: Transaction = {
-        id: newTransactionRef.id,
-        invoice: invoiceId,
-        customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
-        items: orderItems.map(item => ({
-          productId: item.id,
-          qty: item.quantity,
-          price: item.price,
-          preference: item.preference,
-        })),
-        total: total,
-        paymentMethod,
-        createdAt: new Date() as any, // Use client date for immediate display
-      };
-      setCompletedTransaction(finalTransactionData);
+      setCompletedTransaction(finalTransactionDataForReceipt);
 
       setOrderItems([]);
       setCustomerName('');
@@ -262,14 +292,24 @@ export default function POSPage() {
   }
 
   const handlePrintReceipt = () => {
-    const printContents = document.getElementById('receipt-content')?.innerHTML;
-    const originalContents = document.body.innerHTML;
-    if (printContents) {
-        document.body.innerHTML = printContents;
-        window.print();
-        document.body.innerHTML = originalContents;
-        // Re-attach event listeners if needed, or simply reload
-        window.location.reload();
+    const receiptContent = document.getElementById('receipt-content');
+    if (receiptContent) {
+        const printWindow = window.open('', '', 'height=600,width=800');
+        printWindow?.document.write('<html><head><title>Print Receipt</title>');
+        // Optional: Add styles for printing
+        printWindow?.document.write(`
+            <style>
+                body { font-family: monospace; margin: 0; }
+                .receipt-container { width: 300px; margin: auto; padding: 10px; }
+                /* Add other styles from your receipt component if they don't get carried over */
+            </style>
+        `);
+        printWindow?.document.write('</head><body>');
+        printWindow?.document.write(receiptContent.innerHTML);
+        printWindow?.document.write('</body></html>');
+        printWindow?.document.close();
+        printWindow?.focus();
+        printWindow?.print();
     }
   };
 
@@ -514,3 +554,5 @@ export default function POSPage() {
     </div>
   );
 }
+
+    
