@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { MoreHorizontal, Plus, ShoppingCart, Loader } from 'lucide-react';
+import { MoreHorizontal, Plus, Loader } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,15 +43,12 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import {
-  addDocumentNonBlocking,
-  updateDocumentNonBlocking,
-} from '@/firebase/non-blocking-updates';
-import type { RawMaterial } from '@/lib/data';
+import { collection, doc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import type { RawMaterial, Purchase } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { RawMaterialForm, type RawMaterialFormData } from '@/components/forms/RawMaterialForm';
-import { UpdateStockForm, type UpdateStockFormData } from '@/components/forms/UpdateStockForm';
+import { PurchaseForm, type PurchaseFormData } from '@/components/forms/PurchaseForm';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -109,20 +106,59 @@ export default function RawMaterialsPage() {
     setIsSubmitting(false);
   };
 
-  const handlePurchaseItem = (values: UpdateStockFormData) => {
-    if (!firestore || !activeOutlet || !selectedItemForPurchase) return;
+  const handleRecordPurchase = async (values: PurchaseFormData) => {
+    if (!firestore || !activeOutlet || !rawMaterials) return;
+    
+    const selectedMaterial = rawMaterials.find(m => m.id === values.materialId);
+    if (!selectedMaterial) {
+        toast({ title: 'Error', description: 'Selected material not found.', variant: 'destructive' });
+        return;
+    }
+    
     setIsSubmitting(true);
 
-    const itemRef = doc(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials', selectedItemForPurchase.id);
-    const newStock = selectedItemForPurchase.stock + values.quantity;
-    updateDocumentNonBlocking(itemRef, { stock: newStock });
-    toast({
-        title: 'Stock Updated!',
-        description: `Stock for ${selectedItemForPurchase.name} is now ${newStock}.`,
-    });
-    setIsPurchaseDialogOpen(false);
-    setSelectedItemForPurchase(null);
-    setIsSubmitting(false);
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            const materialRef = doc(firestore, 'outlets', activeOutlet.id, 'inventory_raw_materials', values.materialId);
+            const purchaseRef = doc(collection(firestore, 'outlets', activeOutlet.id, 'purchases'));
+
+            const materialSnap = await transaction.get(materialRef);
+            if (!materialSnap.exists()) {
+                throw "Material document does not exist!";
+            }
+            const currentStock = materialSnap.data().stock;
+            const newStock = currentStock + values.quantity;
+
+            transaction.update(materialRef, { stock: newStock });
+
+            const newPurchase: Omit<Purchase, 'id' | 'createdAt'> & { createdAt: any } = {
+                materialName: selectedMaterial.name,
+                materialId: values.materialId,
+                quantity: values.quantity,
+                unit: selectedMaterial.unit,
+                totalCost: values.totalCost,
+                supplier: values.supplier,
+                createdAt: serverTimestamp(),
+            };
+            transaction.set(purchaseRef, newPurchase);
+        });
+
+        toast({
+            title: 'Success!',
+            description: `Purchase for ${selectedMaterial.name} has been recorded.`,
+        });
+        setIsPurchaseDialogOpen(false);
+        setSelectedItemForPurchase(null);
+    } catch (e: any) {
+        console.error("Transaction failed: ", e);
+        toast({
+            title: 'Uh oh! Something went wrong.',
+            description: e.message || 'Could not record the purchase.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
 
@@ -232,10 +268,6 @@ export default function RawMaterialsPage() {
         </div>
         <div className="flex items-center gap-2">
             <OutletSwitcher />
-          <Button size="sm" variant="outline" disabled>
-             <ShoppingCart className="h-4 w-4 mr-2" />
-            Purchase Item
-          </Button>
           <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
             <SheetTrigger asChild>
               <Button size="sm" disabled={!isOutletSelected}>
@@ -268,16 +300,17 @@ export default function RawMaterialsPage() {
       }}>
         <DialogContent>
             <DialogHeader>
-                <DialogTitle>Purchase Raw Material</DialogTitle>
+                <DialogTitle>Record Purchase</DialogTitle>
                 <DialogDescription>
-                    Update the stock for an existing item.
+                    Update the stock for an existing item and record the transaction.
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-                {selectedItemForPurchase && (
-                    <UpdateStockForm 
-                        item={selectedItemForPurchase}
-                        onSubmit={handlePurchaseItem}
+                {selectedItemForPurchase && rawMaterials && (
+                    <PurchaseForm
+                        rawMaterials={rawMaterials}
+                        selectedMaterialId={selectedItemForPurchase.id}
+                        onSubmit={handleRecordPurchase}
                         isSubmitting={isSubmitting}
                     />
                 )}

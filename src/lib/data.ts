@@ -60,6 +60,18 @@ export type Transaction = {
   createdAt: Timestamp;
 };
 
+export type Purchase = {
+  id: string;
+  materialName: string;
+  materialId: string;
+  quantity: number;
+  unit: string;
+  totalCost: number;
+  supplier?: string;
+  createdAt: Timestamp;
+};
+
+
 // Default data for seeding
 export const defaultProducts: Omit<Product, 'id' | 'createdAt'>[] = [
   { name: 'Espresso', category: 'Coffee', price: 3.0, cost: 0.5, active: true },

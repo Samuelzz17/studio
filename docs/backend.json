@@ -88,6 +88,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["invoice", "items", "total", "paymentMethod", "createdAt"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "type": "object",
+      "description": "A record of a raw material purchase.",
+      "properties": {
+        "materialName": { "type": "string" },
+        "materialId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "totalCost": { "type": "number" },
+        "supplier": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["materialName", "materialId", "quantity", "unit", "totalCost", "createdAt"]
     }
   },
   "auth": {
@@ -136,6 +151,13 @@
         "definition": {
           "schema": { "$ref": "#/entities/Transaction" },
           "description": "POS transactions for a specific outlet."
+        }
+      },
+      {
+        "path": "/outlets/{outletId}/purchases/{purchaseId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Purchase" },
+          "description": "History of raw material purchases for a specific outlet."
         }
       }
     ]
