@@ -198,14 +198,14 @@ export default function AssetsPage() {
       </main>
 
       <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
-        <SheetContent>
+        <SheetContent className="flex flex-col">
             <SheetHeader>
                 <SheetTitle>Add New Asset</SheetTitle>
                 <SheetDescription>
                     Record a new asset purchase like equipment or furniture.
                 </SheetDescription>
             </SheetHeader>
-            <div className="py-4">
+            <div className="py-4 overflow-y-auto">
                 <AssetInvestmentForm onSubmit={handleSaveAsset} isSubmitting={isSubmitting} />
             </div>
         </SheetContent>

@@ -236,14 +236,14 @@ export default function ProductsPage() {
       </main>
       
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="sm:max-w-2xl">
+        <SheetContent className="sm:max-w-2xl flex flex-col">
             <SheetHeader>
                 <SheetTitle>Add New Product</SheetTitle>
                 <SheetDescription>
                     Define a new product including its recipe from available raw materials.
                 </SheetDescription>
             </SheetHeader>
-            <div className="py-4">
+            <div className="py-4 overflow-y-auto">
                 {rawMaterials && (
                     <ProductForm 
                         rawMaterials={rawMaterials} 

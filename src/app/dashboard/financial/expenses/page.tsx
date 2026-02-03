@@ -197,14 +197,14 @@ export default function ExpensesPage() {
       </main>
 
       <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
-        <SheetContent>
+        <SheetContent className="flex flex-col">
             <SheetHeader>
                 <SheetTitle>Record New Expense</SheetTitle>
                 <SheetDescription>
                     Record a new business operational expense.
                 </SheetDescription>
             </SheetHeader>
-            <div className="py-4">
+            <div className="py-4 overflow-y-auto">
                 <ExpenseForm onSubmit={handleSaveExpense} isSubmitting={isSubmitting} />
             </div>
         </SheetContent>

@@ -223,14 +223,14 @@ export default function PurchasesPage() {
                         Purchase Item
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-[480px] flex flex-col max-h-[90vh]">
                     <DialogHeader>
                         <DialogTitle>Record New Purchase</DialogTitle>
                         <DialogDescription>
                             Select a raw material and enter the purchase details. This will automatically update your stock.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
+                    <div className="py-4 overflow-y-auto">
                        {rawMaterials && (
                          <PurchaseForm
                             rawMaterials={rawMaterials}

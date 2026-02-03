@@ -191,14 +191,14 @@ export default function AssetPurchasesPage() {
       </main>
 
       <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
-        <SheetContent>
+        <SheetContent className="flex flex-col">
             <SheetHeader>
                 <SheetTitle>Record New Asset Purchase</SheetTitle>
                 <SheetDescription>
                     Record a new asset purchase like equipment or furniture. This will add it to your inventory.
                 </SheetDescription>
             </SheetHeader>
-            <div className="py-4">
+            <div className="py-4 overflow-y-auto">
                 <AssetInvestmentForm onSubmit={handleSaveAsset} isSubmitting={isSubmitting} />
             </div>
         </SheetContent>

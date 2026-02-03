@@ -302,14 +302,14 @@ export default function RawMaterialsPage() {
                 Add Item
               </Button>
             </SheetTrigger>
-            <SheetContent>
+            <SheetContent className="flex flex-col">
                 <SheetHeader>
                     <SheetTitle>Add New Raw Material</SheetTitle>
                     <SheetDescription>
                         Fill in the details for the new inventory item.
                     </SheetDescription>
                 </SheetHeader>
-                <div className="py-4">
+                <div className="py-4 overflow-y-auto">
                     <RawMaterialForm onSubmit={handleAddRawMaterial} isSubmitting={isSubmitting} />
                 </div>
             </SheetContent>
@@ -325,7 +325,7 @@ export default function RawMaterialsPage() {
           setIsPurchaseDialogOpen(isOpen);
           if (!isOpen) setSelectedItemForPurchase(null);
       }}>
-        <DialogContent>
+        <DialogContent className="flex flex-col max-h-[90vh]">
             <DialogHeader>
                 <DialogTitle>Record Purchase</DialogTitle>
                 <DialogDescription>
@@ -334,7 +334,7 @@ export default function RawMaterialsPage() {
                     : 'Select a material and record the purchase. This will update stock levels.'}
                 </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 overflow-y-auto">
                 {rawMaterials && (
                     <PurchaseForm
                         rawMaterials={rawMaterials}
