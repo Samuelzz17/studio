@@ -82,3 +82,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body.printing * {
+    visibility: hidden;
+  }
+  body.printing #receipt-content,
+  body.printing #receipt-content * {
+    visibility: visible;
+  }
+  body.printing #receipt-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  body.printing #receipt-dialog {
+    visibility: hidden;
+  }
+}

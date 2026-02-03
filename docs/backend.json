@@ -83,6 +83,7 @@
       "description": "A single POS transaction.",
       "properties": {
         "invoice": { "type": "string" },
+        "customerName": { "type": "string", "description": "Name of the customer for the order." },
         "items": {
           "type": "array",
           "items": {
@@ -90,7 +91,8 @@
             "properties": {
               "productId": { "type": "string" },
               "qty": { "type": "number" },
-              "price": { "type": "number" }
+              "price": { "type": "number" },
+              "preference": { "type": "string" }
             },
             "required": ["productId", "qty", "price"]
           }

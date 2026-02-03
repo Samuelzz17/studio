@@ -55,11 +55,13 @@ export type TransactionItem = {
   productId: string;
   qty: number;
   price: number;
+  preference: 'normal' | 'low sugar';
 };
 
 export type Transaction = {
   id: string;
   invoice: string;
+  customerName: string;
   items: TransactionItem[];
   total: number;
   paymentMethod: 'Cash' | 'Card' | 'Bank';

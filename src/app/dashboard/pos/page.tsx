@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import type { Product, RawMaterial } from '@/lib/data';
-import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader } from 'lucide-react';
+import type { Product, RawMaterial, Transaction } from '@/lib/data';
+import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
@@ -25,19 +25,39 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
-  SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, serverTimestamp, runTransaction, doc, increment } from 'firebase/firestore';
 import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/currency';
+import { TransactionReceipt } from '@/components/TransactionReceipt';
 
-type OrderItem = Product & { quantity: number };
+type OrderPreference = 'normal' | 'low sugar';
+type OrderItem = Product & { quantity: number; preference: OrderPreference };
 
 export default function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [customerName, setCustomerName] = useState('');
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
+  
+  // State for preference selection
+  const [productToAdd, setProductToAdd] = useState<Product | null>(null);
+  const [isPreferenceDialogOpen, setIsPreferenceDialogOpen] = useState(false);
+
+  // State for receipt
+  const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
+
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
   const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
@@ -68,6 +88,11 @@ export default function POSPage() {
   const { data: menuItems, isLoading: isLoadingMenu } = useCollection<Product>(menuItemsQuery);
   const { data: rawMaterials, isLoading: isLoadingRawMaterials } = useCollection<RawMaterial>(rawMaterialsQuery);
 
+  const menuItemsMap = useMemo(() => {
+    if (!menuItems) return new Map<string, Product>();
+    return new Map(menuItems.map(item => [item.id, item]));
+  }, [menuItems]);
+
   const rawMaterialsMap = useMemo(() => {
     if (!rawMaterials) return new Map<string, RawMaterial>();
     return new Map(rawMaterials.map(m => [m.id, m]));
@@ -84,34 +109,46 @@ export default function POSPage() {
     return Math.min(...stockRatios);
   }, [rawMaterialsMap]);
 
+  const handleOpenPreferenceDialog = (item: Product) => {
+    setProductToAdd(item);
+    setIsPreferenceDialogOpen(true);
+  };
 
-  const handleAddItem = (item: Product) => {
+  const handleAddItem = (preference: OrderPreference) => {
+    if (!productToAdd) return;
+
     setOrderItems((prevItems) => {
-      const existingItem = prevItems.find((i) => i.id === item.id);
-      if (existingItem) {
-        return prevItems.map((i) =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-        );
+      const existingItemIndex = prevItems.findIndex(
+        (i) => i.id === productToAdd.id && i.preference === preference
+      );
+
+      if (existingItemIndex > -1) {
+        const newItems = [...prevItems];
+        const item = newItems[existingItemIndex];
+        newItems[existingItemIndex] = { ...item, quantity: item.quantity + 1 };
+        return newItems;
       }
-      return [...prevItems, { ...item, quantity: 1 }];
+      
+      return [...prevItems, { ...productToAdd, quantity: 1, preference }];
     });
     toast({
       title: 'Item Added',
-      description: `${item.name} was added to the order.`,
+      description: `${productToAdd.name} (${preference}) was added to the order.`,
     });
+    setIsPreferenceDialogOpen(false);
+    setProductToAdd(null);
   };
 
-  const handleUpdateQuantity = (itemId: string, amount: number) => {
+  const handleUpdateQuantity = (productId: string, preference: OrderPreference, amount: number) => {
     setOrderItems((prevItems) => {
-      const updatedItems = prevItems
+      return prevItems
         .map((item) => {
-          if (item.id === itemId) {
+          if (item.id === productId && item.preference === preference) {
             return { ...item, quantity: item.quantity + amount };
           }
           return item;
         })
         .filter((item) => item.quantity > 0);
-      return updatedItems;
     });
   };
 
@@ -127,6 +164,7 @@ export default function POSPage() {
 
   const handleClearOrder = () => {
     setOrderItems([]);
+    setCustomerName('');
     toast({
         title: "Order Cleared",
         description: "The current order has been cleared.",
@@ -138,6 +176,8 @@ export default function POSPage() {
     if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
 
     try {
+      const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
+
       await runTransaction(firestore, async (transaction) => {
         const productDetailsMap = new Map(menuItems.map(p => [p.id, p]));
         const stockDeductions = new Map<string, number>();
@@ -169,19 +209,20 @@ export default function POSPage() {
         }
         
         // 3. Create sales record
-        const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
-        const newTransaction = {
+        const newTransactionData = {
             invoice: `INV-${Date.now()}`,
+            customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
             items: orderItems.map(item => ({
                 productId: item.id,
                 qty: item.quantity,
-                price: item.price
+                price: item.price,
+                preference: item.preference,
             })),
             total: total,
             paymentMethod,
             createdAt: serverTimestamp(),
         };
-        transaction.set(newTransactionRef, newTransaction);
+        transaction.set(newTransactionRef, newTransactionData);
       });
 
       const paymentMethodDisplay = { 'Cash': 'Tunai', 'Card': 'Kartu', 'Bank': 'Transfer Bank' };
@@ -189,7 +230,25 @@ export default function POSPage() {
           title: "Pesanan Berhasil!",
           description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
       });
+      
+      const finalTransactionData: Transaction = {
+        id: newTransactionRef.id,
+        invoice: `INV-${Date.now()}`,
+        customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
+        items: orderItems.map(item => ({
+          productId: item.id,
+          qty: item.quantity,
+          price: item.price,
+          preference: item.preference,
+        })),
+        total: total,
+        paymentMethod,
+        createdAt: new Date() as any, // Use client date for immediate display
+      };
+      setCompletedTransaction(finalTransactionData);
+
       setOrderItems([]);
+      setCustomerName('');
       setIsCheckoutSheetOpen(false);
 
     } catch (e: any) {
@@ -232,7 +291,7 @@ export default function POSPage() {
                   <Card
                     key={item.id}
                     className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:ring-2 data-[disabled=true]:ring-destructive/50"
-                    onClick={() => isAvailable && handleAddItem(item)}
+                    onClick={() => isAvailable && handleOpenPreferenceDialog(item)}
                     data-disabled={!isAvailable}
                   >
                     <div className="relative">
@@ -274,7 +333,7 @@ export default function POSPage() {
               ) : (
                 <div className="space-y-4">
                   {orderItems.map((item) => (
-                    <div key={item.id} className="flex items-center gap-4">
+                    <div key={item.id + item.preference} className="flex items-center gap-4">
                       <Image
                         src={`https://picsum.photos/seed/${item.id}/64/64`}
                         alt={item.name}
@@ -284,6 +343,9 @@ export default function POSPage() {
                       />
                       <div className="flex-1">
                         <p className="font-medium">{item.name}</p>
+                        <p className="text-xs text-muted-foreground -mt-1">
+                          {item.preference}
+                        </p>
                         <p className="text-sm text-muted-foreground">
                           {formatCurrency(item.price)}
                         </p>
@@ -293,7 +355,7 @@ export default function POSPage() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => handleUpdateQuantity(item.id, -1)}
+                          onClick={() => handleUpdateQuantity(item.id, item.preference, -1)}
                         >
                           <MinusCircle className="h-4 w-4" />
                         </Button>
@@ -302,7 +364,7 @@ export default function POSPage() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => handleUpdateQuantity(item.id, 1)}
+                          onClick={() => handleUpdateQuantity(item.id, item.preference, 1)}
                         >
                           <PlusCircle className="h-4 w-4" />
                         </Button>
@@ -340,9 +402,18 @@ export default function POSPage() {
                     <SheetContent>
                       <SheetHeader>
                         <SheetTitle>Complete Payment</SheetTitle>
-                        <SheetDescription>Select a payment method to finalize the order.</SheetDescription>
+                        <SheetDescription>Enter customer details and select a payment method to finalize the order.</SheetDescription>
                       </SheetHeader>
                       <div className="py-8">
+                         <div className="mb-6 space-y-2">
+                            <Label htmlFor="customer-name">Customer Name</Label>
+                            <Input
+                                id="customer-name"
+                                value={customerName}
+                                onChange={(e) => setCustomerName(e.target.value)}
+                                placeholder="Anonymous"
+                            />
+                         </div>
                          <div className="flex justify-between font-bold text-xl mb-6">
                             <span>Total</span>
                             <span>{formatCurrency(total)}</span>
@@ -394,8 +465,45 @@ export default function POSPage() {
       <main className="flex-1 p-4 md:p-6">
         {renderContent()}
       </main>
+
+      <Dialog open={isPreferenceDialogOpen} onOpenChange={setIsPreferenceDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Add {productToAdd?.name}</DialogTitle>
+                <DialogDescription>
+                    Choose a preference for this item.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+                <Button variant="outline" size="lg" onClick={() => handleAddItem('normal')}>Normal</Button>
+                <Button variant="outline" size="lg" onClick={() => handleAddItem('low sugar')}>Low Sugar</Button>
+            </div>
+        </DialogContent>
+      </Dialog>
+      
+      {completedTransaction && activeOutlet && (
+         <Dialog open={!!completedTransaction} onOpenChange={() => setCompletedTransaction(null)}>
+            <DialogContent className="sm:max-w-md" id="receipt-dialog">
+                <DialogHeader>
+                    <DialogTitle>Transaction Successful</DialogTitle>
+                    <DialogDescription>Receipt for invoice {completedTransaction.invoice}</DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <TransactionReceipt 
+                        transaction={completedTransaction} 
+                        outlet={activeOutlet} 
+                        productsMap={menuItemsMap} 
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setCompletedTransaction(null)}>Close</Button>
+                    <Button onClick={() => window.print()}>
+                        <Printer className="mr-2 h-4 w-4" /> Print Receipt
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+         </Dialog>
+      )}
     </div>
   );
 }
-
-    
