@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { MoreHorizontal, Plus, Loader } from 'lucide-react';
+import { MoreHorizontal, Plus, Loader, ShoppingCart } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -268,6 +268,15 @@ export default function RawMaterialsPage() {
         </div>
         <div className="flex items-center gap-2">
             <OutletSwitcher />
+           <Button
+              variant="outline"
+              size="sm"
+              disabled={!isOutletSelected || isLoadingRawMaterials}
+              onClick={() => setIsPurchaseDialogOpen(true)}
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Purchase Item
+            </Button>
           <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
             <SheetTrigger asChild>
               <Button size="sm" disabled={!isOutletSelected}>
@@ -302,14 +311,16 @@ export default function RawMaterialsPage() {
             <DialogHeader>
                 <DialogTitle>Record Purchase</DialogTitle>
                 <DialogDescription>
-                    Update the stock for an existing item and record the transaction.
+                  {selectedItemForPurchase
+                    ? `Update the stock for ${selectedItemForPurchase.name}.`
+                    : 'Select a material and record the purchase. This will update stock levels.'}
                 </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-                {selectedItemForPurchase && rawMaterials && (
+                {rawMaterials && (
                     <PurchaseForm
                         rawMaterials={rawMaterials}
-                        selectedMaterialId={selectedItemForPurchase.id}
+                        selectedMaterialId={selectedItemForPurchase?.id}
                         onSubmit={handleRecordPurchase}
                         isSubmitting={isSubmitting}
                     />
