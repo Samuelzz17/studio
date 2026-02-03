@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -15,7 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Product, RawMaterial, Transaction } from '@/lib/data';
-import { PlusCircle, MinusCircle, X, CreditCard, Landmark, CircleDollarSign, Loader, Printer } from 'lucide-react';
+import { PlusCircle, MinusCircle, X, CircleDollarSign, Loader, Printer, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sheet,
@@ -172,7 +171,7 @@ export default function POSPage() {
     })
   }
   
-  const handleCheckout = async (paymentMethod: 'Cash' | 'Card' | 'Bank') => {
+  const handleCheckout = async (paymentMethod: 'Cash' | 'QRIS') => {
     if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
 
     try {
@@ -225,7 +224,7 @@ export default function POSPage() {
         transaction.set(newTransactionRef, newTransactionData);
       });
 
-      const paymentMethodDisplay = { 'Cash': 'Tunai', 'Card': 'Kartu', 'Bank': 'Transfer Bank' };
+      const paymentMethodDisplay = { 'Cash': 'Tunai', 'QRIS': 'QRIS' };
       toast({
           title: "Pesanan Berhasil!",
           description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
@@ -420,18 +419,13 @@ export default function POSPage() {
                         </div>
                         <div className="space-y-4">
                           <SheetClose asChild>
-                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Card')}>
-                              <CreditCard className="mr-4 h-6 w-6"/> Bayar dengan Kartu
-                            </Button>
-                          </SheetClose>
-                          <SheetClose asChild>
                             <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Cash')}>
                               <CircleDollarSign className="mr-4 h-6 w-6"/> Bayar dengan Tunai
                             </Button>
                           </SheetClose>
                           <SheetClose asChild>
-                            <Button variant="secondary" className="w-full h-16 text-lg" onClick={() => handleCheckout('Bank')}>
-                                <Landmark className="mr-4 h-6 w-6"/> Bayar dengan Transfer Bank
+                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('QRIS')}>
+                                <QrCode className="mr-4 h-6 w-6"/> Bayar dengan QRIS
                             </Button>
                           </SheetClose>
                         </div>

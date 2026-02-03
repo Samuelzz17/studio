@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useMemo } from 'react';
@@ -197,7 +196,7 @@ export default function SalesPage() {
                           <TableCell>
                             <Badge
                               variant={
-                                sale.paymentMethod === 'Card'
+                                sale.paymentMethod === 'QRIS'
                                   ? 'default'
                                   : 'secondary'
                               }

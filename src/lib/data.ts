@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export type User = {
@@ -64,7 +63,7 @@ export type Transaction = {
   customerName: string;
   items: TransactionItem[];
   total: number;
-  paymentMethod: 'Cash' | 'Card' | 'Bank';
+  paymentMethod: 'Cash' | 'QRIS';
   createdAt: Timestamp;
 };
 
