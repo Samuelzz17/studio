@@ -1,6 +1,6 @@
-
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -26,24 +26,58 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, serverTimestamp } from 'firebase/firestore';
+import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { AssetInvestment } from '@/lib/data';
 import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/currency';
+import { AssetInvestmentForm, type AssetInvestmentFormData } from '@/components/forms/AssetInvestmentForm';
+import { useToast } from '@/hooks/use-toast';
+
 
 export default function AssetsPage() {
   const { firestore } = useFirebase();
   const { activeOutlet, loading: isLoadingOutlets } = useOutlet();
+  const { toast } = useToast();
   const isOutletSelected = !!activeOutlet;
 
-  const assetsQuery = useMemoFirebase(() => {
+  // State for form/sheet
+  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const assetsCollectionRef = useMemoFirebase(() => {
     if (!firestore || !activeOutlet) return null;
     return collection(firestore, 'outlets', activeOutlet.id, 'inventory_assets');
   }, [firestore, activeOutlet]);
   
-  const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsQuery);
+  const { data: assets, isLoading: isLoadingAssets } = useCollection<AssetInvestment>(assetsCollectionRef);
+
+  const handleSaveAsset = (values: AssetInvestmentFormData) => {
+    if (!assetsCollectionRef) return;
+    setIsSubmitting(true);
+    
+    const newDoc = {
+        ...values,
+        createdAt: serverTimestamp(),
+    };
+    addDocumentNonBlocking(assetsCollectionRef, newDoc);
+    toast({
+        title: 'Success!',
+        description: `${values.name} has been added to your assets.`,
+    });
+    setIsAddSheetOpen(false);
+    setIsSubmitting(false);
+  };
+
 
   const renderContent = () => {
     if (isLoadingOutlets) {
@@ -146,19 +180,33 @@ export default function AssetsPage() {
         </div>
         <div className="flex items-center gap-2">
             <OutletSwitcher />
-          <Button size="sm" variant="outline" disabled={!isOutletSelected}>
+          <Button size="sm" variant="outline" disabled={!isOutletSelected} onClick={() => setIsAddSheetOpen(true)}>
              <ShoppingCart className="h-4 w-4 mr-2" />
-            Purchase Item
+            Purchase Asset
           </Button>
-          <Button size="sm" disabled={!isOutletSelected}>
+          <Button size="sm" disabled={!isOutletSelected} onClick={() => setIsAddSheetOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Item
+            Add Asset
           </Button>
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
         {renderContent()}
       </main>
+
+      <Sheet open={isAddSheetOpen} onOpenChange={setIsAddSheetOpen}>
+        <SheetContent>
+            <SheetHeader>
+                <SheetTitle>Add New Asset</SheetTitle>
+                <SheetDescription>
+                    Record a new asset purchase like equipment or furniture.
+                </SheetDescription>
+            </SheetHeader>
+            <div className="py-4">
+                <AssetInvestmentForm onSubmit={handleSaveAsset} isSubmitting={isSubmitting} />
+            </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
