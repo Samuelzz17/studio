@@ -84,20 +84,20 @@
 }
 
 @media print {
-  body.printing * {
+  body {
     visibility: hidden;
   }
-  body.printing #receipt-content,
-  body.printing #receipt-content * {
+  #receipt-content,
+  #receipt-content * {
     visibility: visible;
   }
-  body.printing #receipt-content {
+  #receipt-content {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
   }
-  body.printing #receipt-dialog {
+  #receipt-dialog-content {
     visibility: hidden;
   }
 }

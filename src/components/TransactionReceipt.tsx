@@ -3,6 +3,7 @@
 import { Transaction, OutletInfo, Product } from '@/lib/data';
 import { formatCurrency } from '@/lib/currency';
 import { format } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 
 interface TransactionReceiptProps {
   transaction: Transaction;
@@ -14,6 +15,17 @@ export function TransactionReceipt({ transaction, outlet, productsMap }: Transac
   const subtotal = transaction.items.reduce((acc, item) => acc + item.price * item.qty, 0);
   const tax = subtotal * 0.11;
 
+  const getTransactionDate = () => {
+    const { createdAt } = transaction;
+    if (!createdAt) return new Date(); // Fallback
+    // Check if it's a Firestore Timestamp
+    if (typeof (createdAt as any).toDate === 'function') {
+      return (createdAt as Timestamp).toDate();
+    }
+    // Otherwise, try to parse it as a date
+    return new Date(createdAt as any);
+  };
+
   return (
     <div id="receipt-content" className="bg-white text-black text-sm font-mono p-4 max-w-sm mx-auto">
       <div className="text-center">
@@ -21,7 +33,7 @@ export function TransactionReceipt({ transaction, outlet, productsMap }: Transac
         {/* You can add outlet address here if available */}
         <p>INVOICE: {transaction.invoice}</p>
         <p>CUSTOMER: {transaction.customerName}</p>
-        <p>{format(new Date(transaction.createdAt as any), 'dd/MM/yyyy HH:mm:ss')}</p>
+        <p>{format(getTransactionDate(), 'dd/MM/yyyy HH:mm:ss')}</p>
       </div>
       <hr className="my-2 border-dashed border-black" />
       <div>

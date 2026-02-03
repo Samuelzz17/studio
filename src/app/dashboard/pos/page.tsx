@@ -173,10 +173,11 @@ export default function POSPage() {
   
   const handleCheckout = async (paymentMethod: 'Cash' | 'QRIS') => {
     if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
+    
+    const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
+    const invoiceId = `INV-${Date.now()}`;
 
     try {
-      const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
-
       await runTransaction(firestore, async (transaction) => {
         const productDetailsMap = new Map(menuItems.map(p => [p.id, p]));
         const stockDeductions = new Map<string, number>();
@@ -209,7 +210,7 @@ export default function POSPage() {
         
         // 3. Create sales record
         const newTransactionData = {
-            invoice: `INV-${Date.now()}`,
+            invoice: invoiceId,
             customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
             items: orderItems.map(item => ({
                 productId: item.id,
@@ -232,7 +233,7 @@ export default function POSPage() {
       
       const finalTransactionData: Transaction = {
         id: newTransactionRef.id,
-        invoice: `INV-${Date.now()}`,
+        invoice: invoiceId,
         customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
         items: orderItems.map(item => ({
           productId: item.id,
@@ -261,9 +262,15 @@ export default function POSPage() {
   }
 
   const handlePrintReceipt = () => {
-    document.body.classList.add('printing');
-    window.print();
-    document.body.classList.remove('printing');
+    const printContents = document.getElementById('receipt-content')?.innerHTML;
+    const originalContents = document.body.innerHTML;
+    if (printContents) {
+        document.body.innerHTML = printContents;
+        window.print();
+        document.body.innerHTML = originalContents;
+        // Re-attach event listeners if needed, or simply reload
+        window.location.reload();
+    }
   };
 
 
@@ -483,7 +490,7 @@ export default function POSPage() {
       
       {completedTransaction && activeOutlet && (
          <Dialog open={!!completedTransaction} onOpenChange={() => setCompletedTransaction(null)}>
-            <DialogContent className="sm:max-w-md" id="receipt-dialog">
+            <DialogContent className="sm:max-w-md" id="receipt-dialog-content">
                 <DialogHeader>
                     <DialogTitle>Transaction Successful</DialogTitle>
                     <DialogDescription>Receipt for invoice {completedTransaction.invoice}</DialogDescription>
