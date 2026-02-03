@@ -103,6 +103,20 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["materialName", "materialId", "quantity", "unit", "totalCost", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "type": "object",
+      "description": "A record of a business operational expense.",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "expenseDate": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "amount", "expenseDate", "createdAt"]
     }
   },
   "auth": {
@@ -158,6 +172,13 @@
         "definition": {
           "schema": { "$ref": "#/entities/Purchase" },
           "description": "History of raw material purchases for a specific outlet."
+        }
+      },
+      {
+        "path": "/outlets/{outletId}/expenses/{expenseId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Expense" },
+          "description": "Operational expenses for a specific outlet."
         }
       }
     ]

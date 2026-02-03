@@ -71,6 +71,16 @@ export type Purchase = {
   createdAt: Timestamp;
 };
 
+export type Expense = {
+  id: string;
+  name: string;
+  category: string;
+  amount: number;
+  expenseDate: Timestamp;
+  notes?: string;
+  createdAt: Timestamp;
+};
+
 
 // Default data for seeding
 export const defaultProducts: Omit<Product, 'id' | 'createdAt'>[] = [
