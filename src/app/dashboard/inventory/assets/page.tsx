@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -180,9 +181,11 @@ export default function AssetsPage() {
         </div>
         <div className="flex items-center gap-2">
             <OutletSwitcher />
-          <Button size="sm" variant="outline" disabled={!isOutletSelected} onClick={() => setIsAddSheetOpen(true)}>
-             <ShoppingCart className="h-4 w-4 mr-2" />
-            Purchase Asset
+          <Button size="sm" variant="outline" asChild disabled={!isOutletSelected}>
+             <Link href="/dashboard/financial/asset-purchases">
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Purchase History
+             </Link>
           </Button>
           <Button size="sm" disabled={!isOutletSelected} onClick={() => setIsAddSheetOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
