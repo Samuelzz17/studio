@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -40,7 +39,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from './ui/separator';
 import React from 'react';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 
 const navItems = [
   { 
@@ -124,12 +123,28 @@ const NavCollapsible = ({ item, pathname }: { item: any, pathname: string }) => 
 export function SiteSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
+  const { user } = useUser();
   const router = useRouter();
 
   const handleLogout = async () => {
     await auth.signOut();
     router.push('/login');
   }
+
+  const getInitials = (name: string | null | undefined, fallback: string) => {
+    if (!name) return fallback.charAt(0).toUpperCase();
+    const parts = name.split(' ');
+    if (parts.length > 1) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const displayName = user?.displayName || user?.email || 'User';
+  const displayEmail = user?.email || 'No email provided';
+  const avatarFallback = getInitials(user?.displayName, user?.email || 'U');
+  const avatarSrc = user ? `https://picsum.photos/seed/${user.uid}/40/40` : '';
+
 
   return (
     <Sidebar collapsible="icon">
@@ -175,13 +190,13 @@ export function SiteSidebar() {
       <SidebarFooter className="p-2">
         <div className="flex items-center gap-3 p-2 rounded-md">
           <Avatar className="h-9 w-9">
-            <AvatarImage src="https://picsum.photos/seed/user/40/40" alt="@shadcn" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={avatarSrc} alt={displayName} />
+            <AvatarFallback>{avatarFallback}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col group-data-[state=collapsed]:hidden">
-            <span className="text-sm font-medium">Admin User</span>
+            <span className="text-sm font-medium">{displayName}</span>
             <span className="text-xs text-muted-foreground">
-              admin@sr.com
+              {displayEmail}
             </span>
           </div>
         </div>
