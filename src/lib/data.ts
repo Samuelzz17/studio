@@ -12,6 +12,8 @@ export type OutletInfo = {
   id: string;
   name: string;
   code: string;
+  address?: string;
+  phone?: string;
   active: boolean;
   createdAt: Timestamp;
 };

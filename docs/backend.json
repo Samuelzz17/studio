@@ -20,6 +20,8 @@
       "properties": {
         "name": { "type": "string" },
         "code": { "type": "string" },
+        "address": { "type": "string", "description": "The physical address of the outlet." },
+        "phone": { "type": "string", "description": "The contact phone number for the outlet." },
         "active": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

@@ -9,8 +9,8 @@ service cloud.firestore {
     // =========================
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      // Note: Write access is intentionally omitted for now for stricter security.
-      // User documents should be managed by a trusted backend process or admin.
+      // Allow owners to update their own outletAccess list
+      allow update: if request.auth != null && request.auth.uid == userId && isOwner();
     }
 
     // =========================
@@ -18,11 +18,13 @@ service cloud.firestore {
     // =========================
     match /outlets/{outletId} {
 
-      // READ outlet only if user has access. This covers get and list.
-      // The `where ... in` client query is treated as multiple `get`s, which this rule allows.
-      allow read: if isAuthenticated() && hasOutletAccess(outletId);
+      // GET: Allow if user has access
+      allow get: if isAuthenticated() && hasOutletAccess(outletId);
+      
+      // LIST: Allow only for owners to see all outlets
+      allow list: if isOwner();
 
-      // WRITE to the outlet document only for users with 'owner' role
+      // WRITE (Create, Update, Delete): Allow only for owners
       allow write: if isOwner();
 
       // =========================
