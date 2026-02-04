@@ -43,8 +43,7 @@ import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/currency';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
 
-type OrderPreference = 'normal' | 'low sugar';
-type OrderItem = Product & { quantity: number; preference: OrderPreference };
+type OrderItem = Product & { quantity: number };
 
 export default function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -52,10 +51,6 @@ export default function POSPage() {
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State for preference selection
-  const [productToAdd, setProductToAdd] = useState<Product | null>(null);
-  const [isPreferenceDialogOpen, setIsPreferenceDialogOpen] = useState(false);
-
   // State for receipt
   const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
 
@@ -110,14 +105,7 @@ export default function POSPage() {
     return Math.min(...stockRatios);
   }, [rawMaterialsMap]);
 
-  const handleOpenPreferenceDialog = (item: Product) => {
-    setProductToAdd(item);
-    setIsPreferenceDialogOpen(true);
-  };
-
-  const handleAddItem = (preference: OrderPreference) => {
-    if (!productToAdd) return;
-
+  const handleAddItem = (productToAdd: Product) => {
     const currentQtyInCart = orderItems
       .filter((item) => item.id === productToAdd.id)
       .reduce((sum, item) => sum + item.quantity, 0);
@@ -130,14 +118,12 @@ export default function POSPage() {
             description: `Cannot add more ${productToAdd.name}. Only ${producibleQty} can be produced.`,
             variant: 'destructive',
         });
-        setIsPreferenceDialogOpen(false);
-        setProductToAdd(null);
         return;
     }
 
     setOrderItems((prevItems) => {
       const existingItemIndex = prevItems.findIndex(
-        (i) => i.id === productToAdd.id && i.preference === preference
+        (i) => i.id === productToAdd.id
       );
 
       if (existingItemIndex > -1) {
@@ -147,17 +133,15 @@ export default function POSPage() {
         return newItems;
       }
       
-      return [...prevItems, { ...productToAdd, quantity: 1, preference }];
+      return [...prevItems, { ...productToAdd, quantity: 1 }];
     });
     toast({
       title: 'Item Added',
-      description: `${productToAdd.name} (${preference}) was added to the order.`,
+      description: `${productToAdd.name} was added to the order.`,
     });
-    setIsPreferenceDialogOpen(false);
-    setProductToAdd(null);
   };
 
-  const handleUpdateQuantity = (productId: string, preference: OrderPreference, amount: number) => {
+  const handleUpdateQuantity = (productId: string, amount: number) => {
     if (amount > 0) {
         const product = menuItemsMap.get(productId);
         if (!product) return;
@@ -181,7 +165,7 @@ export default function POSPage() {
     setOrderItems((prevItems) => {
       return prevItems
         .map((item) => {
-          if (item.id === productId && item.preference === preference) {
+          if (item.id === productId) {
             return { ...item, quantity: item.quantity + amount };
           }
           return item;
@@ -226,7 +210,7 @@ export default function POSPage() {
           productId: item.id,
           qty: item.quantity,
           price: item.price,
-          preference: item.preference,
+          preference: 'normal',
         })),
         total: total,
         paymentMethod,
@@ -263,7 +247,6 @@ export default function POSPage() {
         }
         
         // 3. Create sales record
-        // The `id` is a client-side property and should not be saved in the document.
         const { id, ...transactionToSave } = finalTransactionData;
         transaction.set(newTransactionRef, transactionToSave);
       });
@@ -292,17 +275,19 @@ export default function POSPage() {
   }
 
   const handlePrintReceipt = () => {
-    const receiptContent = document.getElementById('receipt-content');
+    const receiptContent = document.getElementById('receipt-content-wrapper');
     if (receiptContent) {
         const printWindow = window.open('', '', 'height=600,width=800');
         printWindow?.document.write('<html><head><title>Print Receipt</title>');
-        printWindow?.document.write(`
+        // The global styles in `globals.css` will handle the print layout
+        // by hiding everything except the receipt content.
+         printWindow?.document.write('<link rel="stylesheet" href="/globals.css" media="print" />');
+         printWindow?.document.write(`
             <style>
-                body { font-family: monospace; margin: 0; }
-                .receipt-container { width: 300px; margin: auto; padding: 10px; }
                 @media print {
                   body {
-                      visibility: visible;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                   }
                 }
             </style>
@@ -312,7 +297,9 @@ export default function POSPage() {
         printWindow?.document.write('</body></html>');
         printWindow?.document.close();
         printWindow?.focus();
-        printWindow?.print();
+        setTimeout(() => {
+             printWindow?.print();
+        }, 500); // Allow time for content to render
     }
   };
 
@@ -346,7 +333,7 @@ export default function POSPage() {
                   <Card
                     key={item.id}
                     className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:ring-2 data-[disabled=true]:ring-destructive/50"
-                    onClick={() => isAvailable && handleOpenPreferenceDialog(item)}
+                    onClick={() => isAvailable && handleAddItem(item)}
                     data-disabled={!isAvailable}
                   >
                     <div className="relative">
@@ -388,7 +375,7 @@ export default function POSPage() {
               ) : (
                 <div className="space-y-4">
                   {orderItems.map((item) => (
-                    <div key={item.id + item.preference} className="flex items-center gap-4">
+                    <div key={item.id} className="flex items-center gap-4">
                       <Image
                         src={`https://picsum.photos/seed/${item.id}/64/64`}
                         alt={item.name}
@@ -398,9 +385,6 @@ export default function POSPage() {
                       />
                       <div className="flex-1">
                         <p className="font-medium">{item.name}</p>
-                        <p className="text-xs text-muted-foreground -mt-1">
-                          {item.preference}
-                        </p>
                         <p className="text-sm text-muted-foreground">
                           {formatCurrency(item.price)}
                         </p>
@@ -410,7 +394,7 @@ export default function POSPage() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => handleUpdateQuantity(item.id, item.preference, -1)}
+                          onClick={() => handleUpdateQuantity(item.id, -1)}
                         >
                           <MinusCircle className="h-4 w-4" />
                         </Button>
@@ -419,7 +403,7 @@ export default function POSPage() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => handleUpdateQuantity(item.id, item.preference, 1)}
+                          onClick={() => handleUpdateQuantity(item.id, 1)}
                         >
                           <PlusCircle className="h-4 w-4" />
                         </Button>
@@ -486,7 +470,7 @@ export default function POSPage() {
                         </div>
                       </div>
                       <SheetFooter>
-                        <SheetClose asChild>
+                         <SheetClose asChild>
                             <Button variant="outline" disabled={isSubmitting}>Cancel</Button>
                         </SheetClose>
                       </SheetFooter>
@@ -515,21 +499,6 @@ export default function POSPage() {
         {renderContent()}
       </main>
 
-      <Dialog open={isPreferenceDialogOpen} onOpenChange={setIsPreferenceDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Add {productToAdd?.name}</DialogTitle>
-                <DialogDescription>
-                    Choose a preference for this item.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
-                <Button variant="outline" size="lg" onClick={() => handleAddItem('normal')}>Normal</Button>
-                <Button variant="outline" size="lg" onClick={() => handleAddItem('low sugar')}>Low Sugar</Button>
-            </div>
-        </DialogContent>
-      </Dialog>
-      
       {completedTransaction && activeOutlet && (
          <Dialog open={!!completedTransaction} onOpenChange={() => setCompletedTransaction(null)}>
             <DialogContent className="sm:max-w-md" id="receipt-dialog-content">
@@ -537,7 +506,7 @@ export default function POSPage() {
                     <DialogTitle>Transaction Successful</DialogTitle>
                     <DialogDescription>Receipt for invoice {completedTransaction.invoice}</DialogDescription>
                 </DialogHeader>
-                <div className="py-4" id="receipt-content-wrapper">
+                <div id="receipt-content-wrapper">
                     <TransactionReceipt 
                         transaction={completedTransaction} 
                         outlet={activeOutlet} 

@@ -43,12 +43,11 @@ export function TransactionReceipt({ transaction, outlet, productsMap }: Transac
       </div>
       <hr className="my-2 border-dashed border-black" />
       <div>
-        {transaction.items.map((item) => {
+        {transaction.items.map((item, index) => {
           const product = productsMap.get(item.productId);
           return (
-            <div key={`${item.productId}-${item.preference}`} className="space-y-1 mb-1">
+            <div key={`${item.productId}-${index}`} className="space-y-1 mb-1">
               <p>{product?.name || 'Unknown Product'}</p>
-              <p className="text-xs -mt-1 capitalize">({item.preference})</p>
               <div className="flex justify-between">
                 <span>{item.qty} x {formatCurrency(item.price)}</span>
                 <span>{formatCurrency(item.qty * item.price)}</span>
