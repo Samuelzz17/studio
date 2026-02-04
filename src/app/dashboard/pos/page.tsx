@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -36,7 +37,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
-import { collection, serverTimestamp, runTransaction, doc, increment } from 'firebase/firestore';
+import { collection, serverTimestamp, runTransaction, doc, increment, Timestamp } from 'firebase/firestore';
 import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/currency';
@@ -49,6 +50,7 @@ export default function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // State for preference selection
   const [productToAdd, setProductToAdd] = useState<Product | null>(null);
@@ -209,13 +211,14 @@ export default function POSPage() {
   }
   
   const handleCheckout = async (paymentMethod: 'Cash' | 'QRIS') => {
-    if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
+    if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems || isSubmitting) return;
     
+    setIsSubmitting(true);
     const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
     const invoiceId = `INV-${Date.now()}`;
 
     try {
-      const finalTransactionDataForReceipt: Transaction = {
+      const finalTransactionData: Transaction = {
         id: newTransactionRef.id,
         invoice: invoiceId,
         customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
@@ -227,7 +230,7 @@ export default function POSPage() {
         })),
         total: total,
         paymentMethod,
-        createdAt: new Date() as any, // Use client date for immediate display
+        createdAt: Timestamp.now(), // Use a consistent server-side timestamp
       };
 
       await runTransaction(firestore, async (transaction) => {
@@ -260,13 +263,9 @@ export default function POSPage() {
         }
         
         // 3. Create sales record
-        const newTransactionData = {
-          ...finalTransactionDataForReceipt,
-          createdAt: serverTimestamp(),
-        };
-        delete (newTransactionData as any).id;
-        
-        transaction.set(newTransactionRef, newTransactionData);
+        // The `id` is a client-side property and should not be saved in the document.
+        const { id, ...transactionToSave } = finalTransactionData;
+        transaction.set(newTransactionRef, transactionToSave);
       });
 
       const paymentMethodDisplay = { 'Cash': 'Tunai', 'QRIS': 'QRIS' };
@@ -275,8 +274,7 @@ export default function POSPage() {
           description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
       });
       
-      setCompletedTransaction(finalTransactionDataForReceipt);
-
+      setCompletedTransaction(finalTransactionData);
       setOrderItems([]);
       setCustomerName('');
       setIsCheckoutSheetOpen(false);
@@ -288,6 +286,8 @@ export default function POSPage() {
         description: e.message || 'Could not complete the transaction.',
         variant: 'destructive',
       });
+    } finally {
+        setIsSubmitting(false);
     }
   }
 
@@ -296,12 +296,15 @@ export default function POSPage() {
     if (receiptContent) {
         const printWindow = window.open('', '', 'height=600,width=800');
         printWindow?.document.write('<html><head><title>Print Receipt</title>');
-        // Optional: Add styles for printing
         printWindow?.document.write(`
             <style>
                 body { font-family: monospace; margin: 0; }
                 .receipt-container { width: 300px; margin: auto; padding: 10px; }
-                /* Add other styles from your receipt component if they don't get carried over */
+                @media print {
+                  body {
+                      visibility: visible;
+                  }
+                }
             </style>
         `);
         printWindow?.document.write('</head><body>');
@@ -464,6 +467,7 @@ export default function POSPage() {
                                 value={customerName}
                                 onChange={(e) => setCustomerName(e.target.value)}
                                 placeholder="Anonymous"
+                                disabled={isSubmitting}
                             />
                          </div>
                          <div className="flex justify-between font-bold text-xl mb-6">
@@ -471,21 +475,19 @@ export default function POSPage() {
                             <span>{formatCurrency(total)}</span>
                         </div>
                         <div className="space-y-4">
-                          <SheetClose asChild>
-                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Cash')}>
-                              <CircleDollarSign className="mr-4 h-6 w-6"/> Bayar dengan Tunai
+                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Cash')} disabled={isSubmitting}>
+                              {isSubmitting ? <Loader className="mr-4 h-6 w-6 animate-spin" /> : <CircleDollarSign className="mr-4 h-6 w-6"/>}
+                              {isSubmitting ? 'Processing...' : 'Bayar dengan Tunai'}
                             </Button>
-                          </SheetClose>
-                          <SheetClose asChild>
-                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('QRIS')}>
-                                <QrCode className="mr-4 h-6 w-6"/> Bayar dengan QRIS
+                            <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('QRIS')} disabled={isSubmitting}>
+                                {isSubmitting ? <Loader className="mr-4 h-6 w-6 animate-spin" /> : <QrCode className="mr-4 h-6 w-6"/>}
+                                {isSubmitting ? 'Processing...' : 'Bayar dengan QRIS'}
                             </Button>
-                          </SheetClose>
                         </div>
                       </div>
                       <SheetFooter>
                         <SheetClose asChild>
-                            <Button variant="outline">Cancel</Button>
+                            <Button variant="outline" disabled={isSubmitting}>Cancel</Button>
                         </SheetClose>
                       </SheetFooter>
                     </SheetContent>
@@ -535,7 +537,7 @@ export default function POSPage() {
                     <DialogTitle>Transaction Successful</DialogTitle>
                     <DialogDescription>Receipt for invoice {completedTransaction.invoice}</DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
+                <div className="py-4" id="receipt-content-wrapper">
                     <TransactionReceipt 
                         transaction={completedTransaction} 
                         outlet={activeOutlet} 
@@ -554,5 +556,3 @@ export default function POSPage() {
     </div>
   );
 }
-
-    

@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -84,20 +85,19 @@
 }
 
 @media print {
-  body {
+  body * {
     visibility: hidden;
   }
-  #receipt-content,
-  #receipt-content * {
+  #receipt-content-wrapper, #receipt-content-wrapper * {
     visibility: visible;
   }
-  #receipt-content {
+  #receipt-content-wrapper {
     position: absolute;
     left: 0;
     top: 0;
     width: 100%;
   }
   #receipt-dialog-content {
-    visibility: hidden;
+      visibility: hidden;
   }
 }
