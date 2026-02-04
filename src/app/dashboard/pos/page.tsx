@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -25,6 +24,7 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
+  SheetTrigger,
 } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -52,7 +52,7 @@ export default function POSPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // State for receipt
-  const [completedTransaction, setCompletedTransaction] = useState<Transaction | null>(null);
+  const [completedTransaction, setCompletedTransaction] = useState<(Transaction & { id: string }) | null>(null);
 
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
@@ -198,11 +198,14 @@ export default function POSPage() {
     if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems || isSubmitting) return;
     
     setIsSubmitting(true);
+    
     const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
     const invoiceId = `INV-${Date.now()}`;
+    const transactionTimestamp = Timestamp.now();
+
 
     try {
-      const finalTransactionData: Transaction = {
+      const finalTransactionData: Transaction & { id: string } = {
         id: newTransactionRef.id,
         invoice: invoiceId,
         customerName: customerName.trim() === '' ? 'Anonymous' : customerName,
@@ -214,7 +217,7 @@ export default function POSPage() {
         })),
         total: total,
         paymentMethod,
-        createdAt: Timestamp.now(), // Use a consistent server-side timestamp
+        createdAt: transactionTimestamp,
       };
 
       await runTransaction(firestore, async (transaction) => {
@@ -248,7 +251,7 @@ export default function POSPage() {
         
         // 3. Create sales record
         const { id, ...transactionToSave } = finalTransactionData;
-        transaction.set(newTransactionRef, transactionToSave);
+        transaction.set(newTransactionRef, { ...transactionToSave });
       });
 
       const paymentMethodDisplay = { 'Cash': 'Tunai', 'QRIS': 'QRIS' };
@@ -279,12 +282,22 @@ export default function POSPage() {
     if (receiptContent) {
         const printWindow = window.open('', '', 'height=600,width=800');
         printWindow?.document.write('<html><head><title>Print Receipt</title>');
-        // The global styles in `globals.css` will handle the print layout
-        // by hiding everything except the receipt content.
-         printWindow?.document.write('<link rel="stylesheet" href="/globals.css" media="print" />');
-         printWindow?.document.write(`
+        printWindow?.document.write('<link rel="stylesheet" href="/globals.css" />');
+        printWindow?.document.write(`
             <style>
                 @media print {
+                  body * {
+                    visibility: hidden;
+                  }
+                  #receipt-content-wrapper, #receipt-content-wrapper * {
+                    visibility: visible;
+                  }
+                  #receipt-content-wrapper {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%;
+                  }
                   body {
                     -webkit-print-color-adjust: exact;
                     print-color-adjust: exact;
@@ -333,7 +346,11 @@ export default function POSPage() {
                   <Card
                     key={item.id}
                     className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:ring-2 data-[disabled=true]:ring-destructive/50"
-                    onClick={() => isAvailable && handleAddItem(item)}
+                    onClick={() => {
+                        if (isAvailable) {
+                            handleAddItem(item);
+                        }
+                    }}
                     data-disabled={!isAvailable}
                   >
                     <div className="relative">
