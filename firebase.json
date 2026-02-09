@@ -1,0 +1,6 @@
+{
+  "apphosting": {
+    "backendId": "studio",
+    "region": "us-central1"
+  }
+}

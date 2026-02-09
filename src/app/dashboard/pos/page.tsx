@@ -42,6 +42,9 @@ import { useOutlet } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/currency';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
+import { Capacitor } from '@capacitor/core';
+import { BluetoothClassicPrinter } from '@/lib/native/bluetoothClassicPrinter';
+import { buildReceiptEscPos, buildTestEscPos, escposBytesToBase64 } from '@/lib/pos/escpos';
 
 type OrderItem = Product & { quantity: number };
 
@@ -53,6 +56,12 @@ export default function POSPage() {
   
   // State for receipt
   const [completedTransaction, setCompletedTransaction] = useState<(Transaction & { id: string }) | null>(null);
+  const [pairedPrinters, setPairedPrinters] = useState<{ name: string; address: string }[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState<{ name: string; address: string } | null>(null);
+  const [isPrinterDialogOpen, setIsPrinterDialogOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const isNative = Capacitor.isNativePlatform();
+  const [pendingPrint, setPendingPrint] = useState(false);
 
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
@@ -70,6 +79,15 @@ export default function POSPage() {
       router.push('/dashboard');
     }
   }, [activeOutlet, isLoadingOutlets, router, toast]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedAddress = window.localStorage.getItem('bt_printer_address');
+    const savedName = window.localStorage.getItem('bt_printer_name');
+    if (savedAddress) {
+      setSelectedPrinter({ address: savedAddress, name: savedName || savedAddress });
+    }
+  }, []);
 
   const menuItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !activeOutlet) return null;
@@ -277,7 +295,114 @@ export default function POSPage() {
     }
   }
 
-  const handlePrintReceipt = () => {
+  const loadPairedPrinters = async () => {
+    try {
+      const result = await BluetoothClassicPrinter.listPairedDevices();
+      setPairedPrinters(result.devices || []);
+      return result.devices || [];
+    } catch (e) {
+      console.error('Failed to list paired devices', e);
+      toast({
+        title: 'Printer Error',
+        description: 'Gagal membaca daftar printer. Pastikan Bluetooth aktif dan izin sudah diberikan.',
+        variant: 'destructive',
+      });
+      return [];
+    }
+  };
+
+  const ensurePrinterSelected = async () => {
+    if (selectedPrinter) return selectedPrinter;
+    const devices = await loadPairedPrinters();
+    if (devices.length === 1) {
+      const only = devices[0];
+      setSelectedPrinter(only);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('bt_printer_address', only.address);
+        window.localStorage.setItem('bt_printer_name', only.name || only.address);
+      }
+      return only;
+    }
+    setIsPrinterDialogOpen(true);
+    setPendingPrint(true);
+    return null;
+  };
+
+  const printReceiptNative = async (printerAddress: string) => {
+    if (!completedTransaction || !activeOutlet) return;
+    setIsPrinting(true);
+    try {
+      const perm = await BluetoothClassicPrinter.requestPermissions();
+      if (!perm.granted) {
+        toast({
+          title: 'Permission Required',
+          description: 'Izin Bluetooth belum diberikan.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      await BluetoothClassicPrinter.connect({ address: printerAddress });
+      const bytes = buildReceiptEscPos(completedTransaction, activeOutlet, menuItemsMap);
+      await BluetoothClassicPrinter.print({ data: escposBytesToBase64(bytes) });
+      await BluetoothClassicPrinter.disconnect();
+      toast({
+        title: 'Printed',
+        description: 'Struk berhasil dikirim ke printer.',
+      });
+    } catch (e: any) {
+      console.error('Print failed', e);
+      toast({
+        title: 'Print Failed',
+        description: e?.message || 'Gagal mencetak struk.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const printTestNative = async () => {
+    if (!activeOutlet) return;
+    setIsPrinting(true);
+    try {
+      const perm = await BluetoothClassicPrinter.requestPermissions();
+      if (!perm.granted) {
+        toast({
+          title: 'Permission Required',
+          description: 'Izin Bluetooth belum diberikan.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const printer = await ensurePrinterSelected();
+      if (!printer) return;
+      await BluetoothClassicPrinter.connect({ address: printer.address });
+      const bytes = buildTestEscPos(activeOutlet.name);
+      await BluetoothClassicPrinter.print({ data: escposBytesToBase64(bytes) });
+      await BluetoothClassicPrinter.disconnect();
+      toast({
+        title: 'Test Printed',
+        description: 'Test print berhasil dikirim ke printer.',
+      });
+    } catch (e: any) {
+      console.error('Test print failed', e);
+      toast({
+        title: 'Print Failed',
+        description: e?.message || 'Gagal mencetak test.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  const handlePrintReceipt = async () => {
+    if (isNative) {
+      const printer = await ensurePrinterSelected();
+      if (!printer) return;
+      await printReceiptNative(printer.address);
+      return;
+    }
     const receiptContent = document.getElementById('receipt-content-wrapper');
     if (receiptContent) {
         const printWindow = window.open('', '', 'height=600,width=800');
@@ -504,13 +629,27 @@ export default function POSPage() {
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
+      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
         <div className="md:hidden">
           <SidebarTrigger />
         </div>
         <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
           Point of Sale
         </h1>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs px-2 py-1 rounded-full border ${
+              isNative ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+            }`}
+          >
+            Mode: {isNative ? 'Native' : 'Web'}
+          </span>
+          {isNative && (
+            <Button variant="outline" size="sm" onClick={printTestNative} disabled={isPrinting}>
+              {isPrinting ? 'Printing...' : 'Test Print'}
+            </Button>
+          )}
+        </div>
       </header>
       <main className="flex-1 p-4 md:p-6">
         {renderContent()}
@@ -532,13 +671,64 @@ export default function POSPage() {
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setCompletedTransaction(null)}>Close</Button>
-                    <Button onClick={handlePrintReceipt}>
-                        <Printer className="mr-2 h-4 w-4" /> Print Receipt
+                    <Button onClick={handlePrintReceipt} disabled={isPrinting}>
+                        <Printer className="mr-2 h-4 w-4" /> {isPrinting ? 'Printing...' : 'Print Receipt'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
          </Dialog>
       )}
+
+      <Dialog open={isPrinterDialogOpen} onOpenChange={setIsPrinterDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pilih Printer</DialogTitle>
+            <DialogDescription>
+              Pair printer dulu di Android Settings, lalu pilih dari daftar ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {pairedPrinters.length === 0 && (
+              <p className="text-sm text-muted-foreground">Tidak ada printer paired.</p>
+            )}
+            {pairedPrinters.map((device) => (
+              <Button
+                key={device.address}
+                variant={selectedPrinter?.address === device.address ? 'default' : 'outline'}
+                className="w-full justify-between"
+                onClick={async () => {
+                  setSelectedPrinter(device);
+                  if (typeof window !== 'undefined') {
+                    window.localStorage.setItem('bt_printer_address', device.address);
+                    window.localStorage.setItem('bt_printer_name', device.name || device.address);
+                  }
+                  setIsPrinterDialogOpen(false);
+                  if (pendingPrint) {
+                    setPendingPrint(false);
+                    await printReceiptNative(device.address);
+                  }
+                }}
+              >
+                <span>{device.name || 'Unknown Device'}</span>
+                <span className="text-xs text-muted-foreground">{device.address}</span>
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await loadPairedPrinters();
+              }}
+            >
+              Refresh
+            </Button>
+            <Button variant="outline" onClick={() => setIsPrinterDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

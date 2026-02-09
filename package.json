@@ -13,6 +13,10 @@
     "seed": "tsx scripts/seed-firestore.ts"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^8.1.0",
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
     "@genkit-ai/google-genai": "^1.20.0",
     "@genkit-ai/next": "^1.20.0",
     "@hookform/resolvers": "^4.1.3",
