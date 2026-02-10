@@ -61,6 +61,7 @@ export default function POSPage() {
   const [isPrinterDialogOpen, setIsPrinterDialogOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const isNative = Capacitor.isNativePlatform();
+  const [platform, setPlatform] = useState<string>('unknown');
   const [pendingPrint, setPendingPrint] = useState(false);
 
   const { toast } = useToast();
@@ -87,6 +88,10 @@ export default function POSPage() {
     if (savedAddress) {
       setSelectedPrinter({ address: savedAddress, name: savedName || savedAddress });
     }
+  }, []);
+
+  useEffect(() => {
+    setPlatform(Capacitor.getPlatform());
   }, []);
 
   const menuItemsQuery = useMemoFirebase(() => {
@@ -643,6 +648,9 @@ export default function POSPage() {
             }`}
           >
             Mode: {isNative ? 'Native' : 'Web'}
+          </span>
+          <span className="text-[10px] px-2 py-1 rounded-full border bg-muted text-muted-foreground">
+            Debug: platform={platform} native={String(isNative)}
           </span>
           {isNative && (
             <Button variant="outline" size="sm" onClick={printTestNative} disabled={isPrinting}>
