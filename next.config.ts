@@ -1,16 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'export', // ⬅️ WAJIB UNTUK CAPACITOR
-
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-
   images: {
     unoptimized: true, // ⬅️ WAJIB UNTUK STATIC EXPORT
     remotePatterns: [
