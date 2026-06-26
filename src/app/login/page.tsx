@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -108,6 +109,9 @@ export default function LoginPage() {
             onClick={handleAnonymousLogin}
           >
             Sign In Anonymously (Demo)
+          </Button>
+          <Button asChild variant="secondary" className="w-full">
+            <Link href="/thermal-printer">Buka Demo Thermal Printer</Link>
           </Button>
         </CardFooter>
       </Card>

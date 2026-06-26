@@ -12,7 +12,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Product, RawMaterial, Transaction } from '@/lib/data';
 import { PlusCircle, MinusCircle, X, CircleDollarSign, Loader, Printer, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,7 +23,6 @@ import {
   SheetDescription,
   SheetFooter,
   SheetClose,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import {
   Dialog,
@@ -38,31 +36,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useFirebase, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, serverTimestamp, runTransaction, doc, increment, Timestamp } from 'firebase/firestore';
-import { useOutlet } from '@/components/OutletContext';
+import { useOutlet, OutletSwitcher } from '@/components/OutletContext';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/lib/currency';
 import { TransactionReceipt } from '@/components/TransactionReceipt';
-import { Capacitor } from '@capacitor/core';
-import { BluetoothClassicPrinter } from '@/lib/native/bluetoothClassicPrinter';
-import { buildReceiptEscPos, buildTestEscPos, escposBytesToBase64 } from '@/lib/pos/escpos';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { buildReceiptEscPos, escposBytesToBase64 } from '@/lib/pos/escpos';
 
 type OrderItem = Product & { quantity: number };
 
 export default function POSPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerPayment, setCustomerPayment] = useState(0);
+  const [taxRate, setTaxRate] = useState(0); // Default tax rate is 0%
+  const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage');
+  const [discountValue, setDiscountValue] = useState(0);
   const [isCheckoutSheetOpen, setIsCheckoutSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // State for receipt
   const [completedTransaction, setCompletedTransaction] = useState<(Transaction & { id: string }) | null>(null);
-  const [pairedPrinters, setPairedPrinters] = useState<{ name: string; address: string }[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<{ name: string; address: string } | null>(null);
-  const [isPrinterDialogOpen, setIsPrinterDialogOpen] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const isNative = Capacitor.isNativePlatform();
-  const [platform, setPlatform] = useState<string>('unknown');
-  const [pendingPrint, setPendingPrint] = useState(false);
+
 
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
@@ -80,19 +75,6 @@ export default function POSPage() {
       router.push('/dashboard');
     }
   }, [activeOutlet, isLoadingOutlets, router, toast]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const savedAddress = window.localStorage.getItem('bt_printer_address');
-    const savedName = window.localStorage.getItem('bt_printer_name');
-    if (savedAddress) {
-      setSelectedPrinter({ address: savedAddress, name: savedName || savedAddress });
-    }
-  }, []);
-
-  useEffect(() => {
-    setPlatform(Capacitor.getPlatform());
-  }, []);
 
   const menuItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user || !activeOutlet) return null;
@@ -129,21 +111,6 @@ export default function POSPage() {
   }, [rawMaterialsMap]);
 
   const handleAddItem = (productToAdd: Product) => {
-    const currentQtyInCart = orderItems
-      .filter((item) => item.id === productToAdd.id)
-      .reduce((sum, item) => sum + item.quantity, 0);
-    
-    const producibleQty = calculateProducibleQty(productToAdd);
-
-    if (currentQtyInCart + 1 > producibleQty) {
-        toast({
-            title: 'Stock Limit Reached',
-            description: `Cannot add more ${productToAdd.name}. Only ${producibleQty} can be produced.`,
-            variant: 'destructive',
-        });
-        return;
-    }
-
     setOrderItems((prevItems) => {
       const existingItemIndex = prevItems.findIndex(
         (i) => i.id === productToAdd.id
@@ -158,20 +125,15 @@ export default function POSPage() {
       
       return [...prevItems, { ...productToAdd, quantity: 1 }];
     });
-    toast({
-      title: 'Item Added',
-      description: `${productToAdd.name} was added to the order.`,
-    });
   };
 
   const handleUpdateQuantity = (productId: string, amount: number) => {
-    if (amount > 0) {
-        const product = menuItemsMap.get(productId);
-        if (!product) return;
+    const product = menuItemsMap.get(productId);
+    if (!product) return;
 
+    if (amount > 0) {
         const currentQtyInCart = orderItems
-            .filter(item => item.id === productId)
-            .reduce((sum, item) => sum + item.quantity, 0);
+            .find(item => item.id === productId)?.quantity ?? 0;
         
         const producibleQty = calculateProducibleQty(product);
 
@@ -197,19 +159,35 @@ export default function POSPage() {
     });
   };
 
-  const { subtotal, tax, total } = useMemo(() => {
+  const { subtotal, discountAmount, tax, total } = useMemo(() => {
     const subtotal = orderItems.reduce(
       (acc, item) => acc + item.price * item.quantity,
       0
     );
-    const tax = subtotal * 0.11; // 11% tax
-    const total = subtotal + tax;
-    return { subtotal, tax, total };
-  }, [orderItems]);
+
+    let calculatedDiscount = 0;
+    if (discountType === 'percentage') {
+      calculatedDiscount = subtotal * (discountValue / 100);
+    } else {
+      calculatedDiscount = discountValue;
+    }
+    
+    const totalAfterDiscount = subtotal - calculatedDiscount;
+    const tax = totalAfterDiscount * taxRate;
+    const total = totalAfterDiscount + tax;
+
+    return { subtotal, discountAmount: calculatedDiscount, tax, total };
+  }, [orderItems, taxRate, discountType, discountValue]);
+
+  const change = useMemo(() => customerPayment - total, [customerPayment, total]);
 
   const handleClearOrder = () => {
     setOrderItems([]);
     setCustomerName('');
+    setCustomerPayment(0);
+    setTaxRate(0);
+    setDiscountType('percentage');
+    setDiscountValue(0);
     toast({
         title: "Order Cleared",
         description: "The current order has been cleared.",
@@ -218,15 +196,22 @@ export default function POSPage() {
   }
   
   const handleCheckout = async (paymentMethod: 'Cash' | 'QRIS') => {
-    if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems || isSubmitting) return;
+    if (!firestore || !activeOutlet || orderItems.length === 0 || !menuItems) return;
     
+    if (paymentMethod === 'Cash' && customerPayment < total) {
+      toast({
+        title: 'Insufficient Payment',
+        description: 'Customer payment is less than the total amount.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
     const newTransactionRef = doc(collection(firestore, `outlets/${activeOutlet.id}/sales`));
     const invoiceId = `INV-${Date.now()}`;
-    const transactionTimestamp = Timestamp.now();
-
-
+    
     try {
       const finalTransactionData: Transaction & { id: string } = {
         id: newTransactionRef.id,
@@ -238,15 +223,22 @@ export default function POSPage() {
           price: item.price,
           preference: 'normal',
         })),
-        total: total,
+        total,
+        taxRate,
         paymentMethod,
-        createdAt: transactionTimestamp,
+        customerPayment: paymentMethod === 'Cash' ? customerPayment : total,
+        change: paymentMethod === 'Cash' ? change : 0,
+        createdAt: Timestamp.now(),
+        ...(discountValue > 0 && {
+          discountType,
+          discountValue,
+          discountAmount,
+        }),
       };
 
       await runTransaction(firestore, async (transaction) => {
         const stockDeductions = new Map<string, number>();
 
-        // 1. Calculate total stock deductions and check availability
         for (const orderItem of orderItems) {
           const product = menuItemsMap.get(orderItem.id);
           if (product?.recipe) {
@@ -266,26 +258,29 @@ export default function POSPage() {
           }
         }
 
-        // 2. Perform stock updates
         for (const [materialId, decrementAmount] of stockDeductions.entries()) {
           const materialRef = doc(firestore, `outlets/${activeOutlet.id}/inventory_raw_materials/${materialId}`);
           transaction.update(materialRef, { stock: increment(-decrementAmount) });
         }
         
-        // 3. Create sales record
         const { id, ...transactionToSave } = finalTransactionData;
-        transaction.set(newTransactionRef, { ...transactionToSave });
+        transaction.set(newTransactionRef, { ...transactionToSave, createdAt: serverTimestamp() });
       });
 
+      setCompletedTransaction(finalTransactionData);
+      
       const paymentMethodDisplay = { 'Cash': 'Tunai', 'QRIS': 'QRIS' };
       toast({
           title: "Pesanan Berhasil!",
           description: `Total: ${formatCurrency(total)} dibayar dengan ${paymentMethodDisplay[paymentMethod]}.`,
       });
       
-      setCompletedTransaction(finalTransactionData);
       setOrderItems([]);
       setCustomerName('');
+      setCustomerPayment(0);
+      setTaxRate(0);
+      setDiscountType('percentage');
+      setDiscountValue(0);
       setIsCheckoutSheetOpen(false);
 
     } catch (e: any) {
@@ -300,149 +295,44 @@ export default function POSPage() {
     }
   }
 
-  const loadPairedPrinters = async () => {
-    try {
-      const result = await BluetoothClassicPrinter.listPairedDevices();
-      setPairedPrinters(result.devices || []);
-      return result.devices || [];
-    } catch (e) {
-      console.error('Failed to list paired devices', e);
-      toast({
-        title: 'Printer Error',
-        description: 'Gagal membaca daftar printer. Pastikan Bluetooth aktif dan izin sudah diberikan.',
-        variant: 'destructive',
-      });
-      return [];
-    }
-  };
-
-  const ensurePrinterSelected = async () => {
-    if (selectedPrinter) return selectedPrinter;
-    const devices = await loadPairedPrinters();
-    if (devices.length === 1) {
-      const only = devices[0];
-      setSelectedPrinter(only);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('bt_printer_address', only.address);
-        window.localStorage.setItem('bt_printer_name', only.name || only.address);
-      }
-      return only;
-    }
-    setIsPrinterDialogOpen(true);
-    setPendingPrint(true);
-    return null;
-  };
-
-  const printReceiptNative = async (printerAddress: string) => {
-    if (!completedTransaction || !activeOutlet) return;
-    setIsPrinting(true);
-    try {
-      const perm = await BluetoothClassicPrinter.requestPermissions();
-      if (!perm.granted) {
-        toast({
-          title: 'Permission Required',
-          description: 'Izin Bluetooth belum diberikan.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      await BluetoothClassicPrinter.connect({ address: printerAddress });
-      const bytes = buildReceiptEscPos(completedTransaction, activeOutlet, menuItemsMap);
-      await BluetoothClassicPrinter.print({ data: escposBytesToBase64(bytes) });
-      await BluetoothClassicPrinter.disconnect();
-      toast({
-        title: 'Printed',
-        description: 'Struk berhasil dikirim ke printer.',
-      });
-    } catch (e: any) {
-      console.error('Print failed', e);
-      toast({
-        title: 'Print Failed',
-        description: e?.message || 'Gagal mencetak struk.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPrinting(false);
-    }
-  };
-
-  const printTestNative = async () => {
-    if (!activeOutlet) return;
-    setIsPrinting(true);
-    try {
-      const perm = await BluetoothClassicPrinter.requestPermissions();
-      if (!perm.granted) {
-        toast({
-          title: 'Permission Required',
-          description: 'Izin Bluetooth belum diberikan.',
-          variant: 'destructive',
-        });
-        return;
-      }
-      const printer = await ensurePrinterSelected();
-      if (!printer) return;
-      await BluetoothClassicPrinter.connect({ address: printer.address });
-      const bytes = buildTestEscPos(activeOutlet.name);
-      await BluetoothClassicPrinter.print({ data: escposBytesToBase64(bytes) });
-      await BluetoothClassicPrinter.disconnect();
-      toast({
-        title: 'Test Printed',
-        description: 'Test print berhasil dikirim ke printer.',
-      });
-    } catch (e: any) {
-      console.error('Test print failed', e);
-      toast({
-        title: 'Print Failed',
-        description: e?.message || 'Gagal mencetak test.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsPrinting(false);
-    }
-  };
-
-  const handlePrintReceipt = async () => {
-    if (isNative) {
-      const printer = await ensurePrinterSelected();
-      if (!printer) return;
-      await printReceiptNative(printer.address);
-      return;
-    }
+  const handlePrintReceipt = () => {
     const receiptContent = document.getElementById('receipt-content-wrapper');
     if (receiptContent) {
         const printWindow = window.open('', '', 'height=600,width=800');
-        printWindow?.document.write('<html><head><title>Print Receipt</title>');
-        printWindow?.document.write('<link rel="stylesheet" href="/globals.css" />');
-        printWindow?.document.write(`
-            <style>
-                @media print {
-                  body * {
-                    visibility: hidden;
-                  }
-                  #receipt-content-wrapper, #receipt-content-wrapper * {
-                    visibility: visible;
-                  }
-                  #receipt-content-wrapper {
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    width: 100%;
-                  }
-                  body {
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                  }
-                }
-            </style>
+        if (!printWindow) {
+            toast({ title: "Popup Blocker?", description: "Please allow popups to print receipts.", variant: "destructive" });
+            return;
+        }
+        
+        const stylesheets = Array.from(document.styleSheets)
+            .map(s => s.href ? `<link rel="stylesheet" href="${s.href}">` : '')
+            .join('\n');
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Print Receipt</title>
+                    ${stylesheets}
+                    <style>
+                        @media print {
+                          body * { visibility: hidden; }
+                          #receipt-print-area, #receipt-print-area * { visibility: visible; }
+                          #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; }
+                        }
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    </style>
+                </head>
+                <body>
+                    <div id="receipt-print-area">${receiptContent.innerHTML}</div>
+                </body>
+            </html>
         `);
-        printWindow?.document.write('</head><body>');
-        printWindow?.document.write(receiptContent.innerHTML);
-        printWindow?.document.write('</body></html>');
-        printWindow?.document.close();
-        printWindow?.focus();
+        printWindow.document.close();
+        printWindow.focus();
         setTimeout(() => {
-             printWindow?.print();
-        }, 500); // Allow time for content to render
+             printWindow.print();
+             printWindow.close();
+        }, 500);
     }
   };
 
@@ -468,14 +358,14 @@ export default function POSPage() {
     return (
        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {menuItems?.filter(item => item.id !== '_init' && item.active).map((item) => {
                 const producibleQty = calculateProducibleQty(item);
                 const isAvailable = producibleQty > 0;
                 return (
                   <Card
                     key={item.id}
-                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed data-[disabled=true]:ring-2 data-[disabled=true]:ring-destructive/50"
+                    className="overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-200 data-[disabled=true]:opacity-50 data-[disabled=true]:cursor-not-allowed"
                     onClick={() => {
                         if (isAvailable) {
                             handleAddItem(item);
@@ -483,27 +373,22 @@ export default function POSPage() {
                     }}
                     data-disabled={!isAvailable}
                   >
-                    <div className="relative">
-                      <Image
-                        src={`https://picsum.photos/seed/${item.id}/400/300`}
-                        alt={item.name}
-                        width={400}
-                        height={300}
-                        className="aspect-video w-full object-cover"
-                        data-ai-hint={`${item.category.toLowerCase()} food`}
-                      />
-                      {!isAvailable && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <p className="text-white font-bold text-lg">Out of Stock</p>
-                        </div>
-                      )}
-                    </div>
                     <CardHeader className="p-4">
                       <CardTitle className="text-lg">{item.name}</CardTitle>
-                      <p className="font-semibold text-primary">
+                      <p className="font-semibold text-primary text-base">
                         {formatCurrency(item.price)}
                       </p>
+                      <p className="text-sm text-muted-foreground pt-1">
+                        Est. Qty: {producibleQty === Infinity ? 'N/A' : producibleQty}
+                      </p>
                     </CardHeader>
+                     {!isAvailable && (
+                        <CardContent className="p-4 pt-0">
+                            <div className="bg-destructive/20 text-destructive text-center p-2 rounded-md">
+                            <p className="font-bold text-sm">Out of Stock</p>
+                            </div>
+                        </CardContent>
+                      )}
                   </Card>
                 )
               })}
@@ -523,13 +408,6 @@ export default function POSPage() {
                 <div className="space-y-4">
                   {orderItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-4">
-                      <Image
-                        src={`https://picsum.photos/seed/${item.id}/64/64`}
-                        alt={item.name}
-                        width={64}
-                        height={64}
-                        className="rounded-md object-cover aspect-square"
-                      />
                       <div className="flex-1">
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-muted-foreground">
@@ -567,8 +445,47 @@ export default function POSPage() {
                         <span>Subtotal</span>
                         <span>{formatCurrency(subtotal)}</span>
                     </div>
-                    <div className="flex justify-between">
-                        <span>Taxes (11%)</span>
+
+                    <div className="flex justify-between items-center">
+                        <Label htmlFor="discount-value">Discount</Label>
+                        <div className="flex items-center gap-1">
+                            <Input 
+                                id="discount-value"
+                                type="number"
+                                className="w-20 h-8"
+                                value={discountValue}
+                                onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                            />
+                            <ToggleGroup 
+                                type="single" 
+                                value={discountType} 
+                                onValueChange={(value: 'percentage' | 'amount') => value && setDiscountType(value)} 
+                                className="h-8"
+                            >
+                                <ToggleGroupItem value="percentage" className="px-2 h-8 text-xs">%</ToggleGroupItem>
+                                <ToggleGroupItem value="amount" className="px-2 h-8 text-xs">Rp</ToggleGroupItem>
+                            </ToggleGroup>
+                        </div>
+                    </div>
+                    {discountAmount > 0 &&
+                        <div className="flex justify-between text-destructive">
+                            <span>Discount Applied</span>
+                            <span>- {formatCurrency(discountAmount)}</span>
+                        </div>
+                    }
+
+                    <div className="flex justify-between items-center">
+                        <Label htmlFor="tax-rate">Taxes (%)</Label>
+                        <Input 
+                            id="tax-rate"
+                            type="number"
+                            className="w-20 h-8"
+                            value={taxRate * 100}
+                            onChange={(e) => setTaxRate(parseFloat(e.target.value) / 100 || 0)}
+                        />
+                    </div>
+                     <div className="flex justify-between">
+                        <span> </span>
                         <span>{formatCurrency(tax)}</span>
                     </div>
                     <Separator />
@@ -582,16 +499,16 @@ export default function POSPage() {
                     <X className="mr-2 h-4 w-4"/> Clear
                   </Button>
                   <Sheet open={isCheckoutSheetOpen} onOpenChange={setIsCheckoutSheetOpen}>
-                    <SheetTrigger asChild>
+                    <SheetClose asChild>
                       <Button>Checkout</Button>
-                    </SheetTrigger>
-                    <SheetContent>
+                    </SheetClose>
+                    <SheetContent className="flex flex-col">
                       <SheetHeader>
                         <SheetTitle>Complete Payment</SheetTitle>
                         <SheetDescription>Enter customer details and select a payment method to finalize the order.</SheetDescription>
                       </SheetHeader>
-                      <div className="py-8">
-                         <div className="mb-6 space-y-2">
+                      <div className="flex-1 overflow-y-auto py-8 space-y-4">
+                         <div className="space-y-2">
                             <Label htmlFor="customer-name">Customer Name</Label>
                             <Input
                                 id="customer-name"
@@ -601,10 +518,40 @@ export default function POSPage() {
                                 disabled={isSubmitting}
                             />
                          </div>
-                         <div className="flex justify-between font-bold text-xl mb-6">
-                            <span>Total</span>
-                            <span>{formatCurrency(total)}</span>
-                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="customer-payment">Customer Payment (Cash)</Label>
+                            <Input
+                                id="customer-payment"
+                                type="number"
+                                value={customerPayment}
+                                onChange={(e) => setCustomerPayment(parseFloat(e.target.value) || 0)}
+                                placeholder="Enter amount paid"
+                                disabled={isSubmitting}
+                            />
+                         </div>
+                         <div className="grid grid-cols-4 gap-2">
+                            {[20000, 25000, 50000, 100000].map((amount) => (
+                                <Button key={amount} variant="outline" onClick={() => setCustomerPayment(amount)} disabled={isSubmitting}>
+                                    {formatCurrency(amount)}
+                                </Button>
+                            ))}
+                         </div>
+                         <Separator className="my-4" />
+                         <div className="space-y-2 text-lg">
+                            <div className="flex justify-between font-bold">
+                                <span>Total</span>
+                                <span>{formatCurrency(total)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Payment</span>
+                                <span>{formatCurrency(customerPayment)}</span>
+                            </div>
+                            <div className="flex justify-between font-bold text-primary">
+                                <span>Change</span>
+                                <span>{formatCurrency(change)}</span>
+                            </div>
+                         </div>
+                         <Separator className="my-4" />
                         <div className="space-y-4">
                             <Button className="w-full h-16 text-lg" onClick={() => handleCheckout('Cash')} disabled={isSubmitting}>
                               {isSubmitting ? <Loader className="mr-4 h-6 w-6 animate-spin" /> : <CircleDollarSign className="mr-4 h-6 w-6"/>}
@@ -634,37 +581,19 @@ export default function POSPage() {
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <div className="md:hidden">
-          <SidebarTrigger />
-        </div>
+       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
         <h1 className="font-headline text-xl font-semibold md:text-2xl flex-1">
           Point of Sale
         </h1>
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs px-2 py-1 rounded-full border ${
-              isNative ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-            }`}
-          >
-            Mode: {isNative ? 'Native' : 'Web'}
-          </span>
-          <span className="text-[10px] px-2 py-1 rounded-full border bg-muted text-muted-foreground">
-            Debug: platform={platform} native={String(isNative)}
-          </span>
-          {isNative && (
-            <Button variant="outline" size="sm" onClick={printTestNative} disabled={isPrinting}>
-              {isPrinting ? 'Printing...' : 'Test Print'}
-            </Button>
-          )}
-        </div>
+        <OutletSwitcher />
       </header>
       <main className="flex-1 p-4 md:p-6">
         {renderContent()}
       </main>
 
+      {/* Receipt Dialog */}
       {completedTransaction && activeOutlet && (
-         <Dialog open={!!completedTransaction} onOpenChange={() => setCompletedTransaction(null)}>
+         <Dialog open={!!completedTransaction} onOpenChange={(open) => !open && setCompletedTransaction(null)}>
             <DialogContent className="sm:max-w-md" id="receipt-dialog-content">
                 <DialogHeader>
                     <DialogTitle>Transaction Successful</DialogTitle>
@@ -677,66 +606,21 @@ export default function POSPage() {
                         productsMap={menuItemsMap} 
                     />
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setCompletedTransaction(null)}>Close</Button>
-                    <Button onClick={handlePrintReceipt} disabled={isPrinting}>
-                        <Printer className="mr-2 h-4 w-4" /> {isPrinting ? 'Printing...' : 'Print Receipt'}
-                    </Button>
+                <DialogFooter className="sm:justify-end">
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setCompletedTransaction(null)}>Close</Button>
+                        <Button onClick={handlePrintReceipt}>
+                            <Printer className="mr-2 h-4 w-4" /> Print
+                        </Button>
+                    </div>
                 </DialogFooter>
+
             </DialogContent>
          </Dialog>
       )}
 
-      <Dialog open={isPrinterDialogOpen} onOpenChange={setIsPrinterDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pilih Printer</DialogTitle>
-            <DialogDescription>
-              Pair printer dulu di Android Settings, lalu pilih dari daftar ini.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {pairedPrinters.length === 0 && (
-              <p className="text-sm text-muted-foreground">Tidak ada printer paired.</p>
-            )}
-            {pairedPrinters.map((device) => (
-              <Button
-                key={device.address}
-                variant={selectedPrinter?.address === device.address ? 'default' : 'outline'}
-                className="w-full justify-between"
-                onClick={async () => {
-                  setSelectedPrinter(device);
-                  if (typeof window !== 'undefined') {
-                    window.localStorage.setItem('bt_printer_address', device.address);
-                    window.localStorage.setItem('bt_printer_name', device.name || device.address);
-                  }
-                  setIsPrinterDialogOpen(false);
-                  if (pendingPrint) {
-                    setPendingPrint(false);
-                    await printReceiptNative(device.address);
-                  }
-                }}
-              >
-                <span>{device.name || 'Unknown Device'}</span>
-                <span className="text-xs text-muted-foreground">{device.address}</span>
-              </Button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await loadPairedPrinters();
-              }}
-            >
-              Refresh
-            </Button>
-            <Button variant="outline" onClick={() => setIsPrinterDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+
+    
